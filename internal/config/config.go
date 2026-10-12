@@ -93,7 +93,7 @@ func Load() (*Config, error) {
 
 		DetectorEnabled:      getEnvBool("DETECTOR_ENABLED", true),
 		DetectorModelPath:    getEnv("DETECTOR_MODEL_PATH", "./models/320n.onnx"),
-		DetectorModelURL:     getEnv("DETECTOR_MODEL_URL", "https://github.com/notAI-tech/NudeNet/releases/download/v3.4-weights/320n.onnx"),
+		DetectorModelURL:     getEnv("DETECTOR_MODEL_URL", "https://raw.githubusercontent.com/notAI-tech/NudeNet/v3/nudenet/320n.onnx"),
 		DetectorModelSHA256:  getEnv("DETECTOR_MODEL_SHA256", "c15d8273adad2d0a92f014cc69ab2d6c311a06777a55545f2c4eb46f51911f0f"),
 		DetectorScoreMinimum: getEnvFloat("DETECTOR_SCORE_MINIMUM", 0.25),
 		DetectorIoUThreshold: getEnvFloat("DETECTOR_IOU_THRESHOLD", 0.45),

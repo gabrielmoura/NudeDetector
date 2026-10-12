@@ -14,7 +14,7 @@ MODEL_PATH := $(MODEL_DIR)/model.onnx
 MODEL_URL := https://huggingface.co/onnx-community/nsfw-classifier-ONNX/resolve/main/onnx/model.onnx
 MODEL_SHA256 := d6e841f61f193d9f435b464748c772b4096edd941c9f12b3a05bcb655fb267eb
 DETECTOR_MODEL_PATH := $(MODEL_DIR)/320n.onnx
-DETECTOR_MODEL_URL := https://github.com/notAI-tech/NudeNet/releases/download/v3.4-weights/320n.onnx
+DETECTOR_MODEL_URL := https://raw.githubusercontent.com/notAI-tech/NudeNet/v3/nudenet/320n.onnx
 DETECTOR_MODEL_SHA256 := c15d8273adad2d0a92f014cc69ab2d6c311a06777a55545f2c4eb46f51911f0f
 
 ONNXRUNTIME_VERSION := 1.22.0
@@ -41,11 +41,13 @@ model: ## Baixa e valida o modelo ONNX versionado
 	@mkdir -p $(MODEL_DIR)
 	@if [ ! -f $(MODEL_PATH) ]; then \
 		curl --fail --location --silent --show-error $(MODEL_URL) --output $(MODEL_PATH).tmp; \
+		echo "$(MODEL_SHA256)  $(MODEL_PATH).tmp" | sha256sum --check; \
 		mv $(MODEL_PATH).tmp $(MODEL_PATH); \
 	fi
 	@echo "$(MODEL_SHA256)  $(MODEL_PATH)" | sha256sum --check
 	@if [ ! -f $(DETECTOR_MODEL_PATH) ]; then \
 		curl --fail --location --silent --show-error $(DETECTOR_MODEL_URL) --output $(DETECTOR_MODEL_PATH).tmp; \
+		echo "$(DETECTOR_MODEL_SHA256)  $(DETECTOR_MODEL_PATH).tmp" | sha256sum --check; \
 		mv $(DETECTOR_MODEL_PATH).tmp $(DETECTOR_MODEL_PATH); \
 	fi
 	@echo "$(DETECTOR_MODEL_SHA256)  $(DETECTOR_MODEL_PATH)" | sha256sum --check
