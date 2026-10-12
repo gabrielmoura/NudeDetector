@@ -174,7 +174,12 @@ func newRuntime(loadDetector bool) (*runtime, error) {
 		ort.DestroyEnvironment()
 		return nil, err
 	}
-	processor := imageprocessor.New(metadata.Width, metadata.Height)
+	processor, err := imageprocessor.New(metadata)
+	if err != nil {
+		engine.Close()
+		ort.DestroyEnvironment()
+		return nil, fmt.Errorf("initialize image processor: %w", err)
+	}
 	classifier, err := moderation.NewClassifier(metadata)
 	if err != nil {
 		engine.Close()
