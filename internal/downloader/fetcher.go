@@ -44,7 +44,7 @@ func NewSafeFetcher(dial, tls, respHeader, downloadTimeout int64, maxRedirect in
 			if len(via) >= maxRedirect {
 				return fmt.Errorf("too many redirects")
 			}
-			return validateURL(req.URL)
+			return validateURL(req.Context(), req.URL)
 		},
 	}
 	return &SafeFetcher{client: client, maxBytes: maxBytes}
@@ -55,7 +55,7 @@ func (s *SafeFetcher) Fetch(ctx context.Context, rawURL string) ([]byte, error) 
 	if err != nil {
 		return nil, ErrInvalidURL
 	}
-	if err := validateURL(u); err != nil {
+	if err := validateURL(ctx, u); err != nil {
 		return nil, err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
@@ -100,11 +100,11 @@ func safeDialContext(dialer *net.Dialer) func(context.Context, string, string) (
 	}
 }
 
-func validateURL(u *url.URL) error {
+func validateURL(ctx context.Context, u *url.URL) error {
 	if u == nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
 		return ErrInvalidURL
 	}
-	_, err := resolvePublicIP(context.Background(), u.Hostname())
+	_, err := resolvePublicIP(ctx, u.Hostname())
 	return err
 }
 

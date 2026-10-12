@@ -44,8 +44,10 @@ func (h *Handler) Classify(ctx context.Context, data []byte) (*moderation.Modera
 		return nil, err
 	}
 	observability.InferenceInFlight.Inc()
+	observability.InferenceQueueDepth.Set(float64(h.worker.QueueDepth()))
 	logits, err := h.worker.Infer(ctx, tensor)
 	observability.InferenceInFlight.Dec()
+	observability.InferenceQueueDepth.Set(float64(h.worker.QueueDepth()))
 	if err != nil {
 		return nil, err
 	}

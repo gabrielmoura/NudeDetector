@@ -30,6 +30,7 @@ import (
 type runtime struct {
 	handler  *api.Handler
 	engine   inference.Engine
+	worker   *inference.Worker
 	detector *detector.Detector
 	httpAddr string
 }
@@ -219,6 +220,7 @@ func newRuntime(loadDetector bool) (*runtime, error) {
 	return &runtime{
 		handler:  api.New(cfg, log, metadata, engine, processor, classifier, policy, fetcher, resultCache, worker, bodyDetector),
 		engine:   engine,
+		worker:   worker,
 		detector: bodyDetector,
 		httpAddr: cfg.HTTPAddr,
 	}, nil
@@ -252,6 +254,9 @@ func warmupClassifier(
 }
 
 func (r *runtime) Close() {
+	if r.worker != nil {
+		r.worker.Close()
+	}
 	if r.detector != nil {
 		_ = r.detector.Close()
 	}

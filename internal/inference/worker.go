@@ -70,6 +70,10 @@ func (w *Worker) Infer(ctx context.Context, tensor []float32) (Logits, error) {
 	}
 }
 
+func (w *Worker) QueueDepth() int {
+	return len(w.queue)
+}
+
 func (w *Worker) Close() {
 	close(w.queue)
 }
