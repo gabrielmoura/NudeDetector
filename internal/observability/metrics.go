@@ -49,6 +49,22 @@ var (
 	ModelInfo   = prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "model_info"}, []string{"name", "version"})
 )
 
-func Register(reg *prometheus.Registry) {
-	reg.MustRegister(RequestsTotal, RequestsInFlight, RequestDuration, DownloadDuration, DecodeDuration, PreprocessDuration, InferenceDuration, InferenceInFlight, InferenceQueueDepth, ClassificationTotal, PredictionsTotal, CacheHits, CacheMisses, ErrorsTotal, ModelInfo)
+func Register(reg prometheus.Registerer) {
+	reg.MustRegister(
+		RequestsTotal,
+		RequestsInFlight,
+		RequestDuration,
+		DownloadDuration,
+		DecodeDuration,
+		PreprocessDuration,
+		InferenceDuration,
+		InferenceInFlight,
+		InferenceQueueDepth,
+		ClassificationTotal,
+		PredictionsTotal,
+		CacheHits,
+		CacheMisses,
+		ErrorsTotal,
+		ModelInfo,
+	)
 }

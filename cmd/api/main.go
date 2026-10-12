@@ -47,7 +47,7 @@ func newRootCommand() *cobra.Command {
 		Use:   "nude-detector",
 		Short: "Classifies pornography probability from images",
 		RunE: func(command *cobra.Command, arguments []string) error {
-			runtime, err := newRuntime()
+			runtime, err := newRuntime(true)
 			if err != nil {
 				return err
 			}
@@ -64,7 +64,7 @@ func newServeCommand() *cobra.Command {
 		Use:   "serve",
 		Short: "Starts the HTTP API",
 		RunE: func(command *cobra.Command, arguments []string) error {
-			runtime, err := newRuntime()
+			runtime, err := newRuntime(true)
 			if err != nil {
 				return err
 			}
@@ -87,7 +87,7 @@ func newClassifyCommand() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("read input: %w", err)
 			}
-			runtime, err := newRuntime()
+			runtime, err := newRuntime(false)
 			if err != nil {
 				return err
 			}
@@ -119,7 +119,7 @@ func newExportCommand() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("read input: %w", err)
 			}
-			runtime, err := newRuntime()
+			runtime, err := newRuntime(true)
 			if err != nil {
 				return err
 			}
@@ -150,7 +150,7 @@ func newExportCommand() *cobra.Command {
 	return command
 }
 
-func newRuntime() (*runtime, error) {
+func newRuntime(loadDetector bool) (*runtime, error) {
 	log := observability.Setup()
 	cfg, err := config.Load()
 	if err != nil {
@@ -189,7 +189,7 @@ func newRuntime() (*runtime, error) {
 	}
 	worker := inference.NewWorker(engine, cfg.InferenceConcurrency, cfg.MaxPendingInferences)
 	var bodyDetector *detector.Detector
-	if cfg.DetectorEnabled {
+	if loadDetector && cfg.DetectorEnabled {
 		if err := modelstore.Ensure(cfg.DetectorModelPath, cfg.DetectorModelURL, cfg.DetectorModelSHA256); err != nil {
 			engine.Close()
 			ort.DestroyEnvironment()
@@ -205,8 +205,7 @@ func newRuntime() (*runtime, error) {
 	observability.ModelLoaded = true
 	observability.ReadyFlag = true
 	observability.ModelInfo.WithLabelValues(metadata.Name, metadata.Version).Set(1)
-	registry := prometheus.NewRegistry()
-	observability.Register(registry)
+	observability.Register(prometheus.DefaultRegisterer)
 	return &runtime{
 		handler:  api.New(cfg, log, metadata, engine, processor, classifier, policy, fetcher, resultCache, worker, bodyDetector),
 		engine:   engine,

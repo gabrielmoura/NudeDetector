@@ -43,11 +43,12 @@ func (h *Handler) Classify(ctx context.Context, data []byte) (*moderation.Modera
 	if err != nil {
 		return nil, err
 	}
+	observability.InferenceInFlight.Inc()
 	logits, err := h.worker.Infer(ctx, tensor)
+	observability.InferenceInFlight.Dec()
 	if err != nil {
 		return nil, err
 	}
-	observability.InferenceInFlight.Dec()
 	probs := inference.StableSoftmax(logits)
 	sc, err := h.classifier.Classify(probs)
 	if err != nil {

@@ -20,6 +20,12 @@ func init() {
 }
 
 func isPrivateIP(ip net.IP) bool {
+	if ip.IsUnspecified() {
+		return true
+	}
+	if ipv4 := ip.To4(); ipv4 != nil {
+		ip = ipv4
+	}
 	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsMulticast() {
 		return true
 	}

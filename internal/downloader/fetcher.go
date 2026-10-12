@@ -20,14 +20,17 @@ var (
 )
 
 type SafeFetcher struct {
-	client      *http.Client
-	maxBytes    int64
-	maxRedirect int
+	client   *http.Client
+	maxBytes int64
 }
 
 func NewSafeFetcher(dial, tls, respHeader, downloadTimeout int64, maxRedirect int, maxBytes int64) *SafeFetcher {
+	dialer := &net.Dialer{
+		Timeout:   time.Duration(dial) * time.Millisecond,
+		KeepAlive: 30 * time.Second,
+	}
 	tr := &http.Transport{
-		DialContext:           (&net.Dialer{Timeout: time.Duration(dial) * time.Millisecond, KeepAlive: 30 * time.Second}).DialContext,
+		DialContext:           safeDialContext(dialer),
 		TLSHandshakeTimeout:   time.Duration(tls) * time.Millisecond,
 		ResponseHeaderTimeout: time.Duration(respHeader) * time.Millisecond,
 		MaxIdleConns:          100,
@@ -39,12 +42,12 @@ func NewSafeFetcher(dial, tls, respHeader, downloadTimeout int64, maxRedirect in
 		Timeout:   time.Duration(downloadTimeout) * time.Millisecond,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= maxRedirect {
-				return http.ErrUseLastResponse
+				return fmt.Errorf("too many redirects")
 			}
-			return nil
+			return validateURL(req.URL)
 		},
 	}
-	return &SafeFetcher{client: client, maxBytes: maxBytes, maxRedirect: maxRedirect}
+	return &SafeFetcher{client: client, maxBytes: maxBytes}
 }
 
 func (s *SafeFetcher) Fetch(ctx context.Context, rawURL string) ([]byte, error) {
@@ -52,21 +55,8 @@ func (s *SafeFetcher) Fetch(ctx context.Context, rawURL string) ([]byte, error) 
 	if err != nil {
 		return nil, ErrInvalidURL
 	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return nil, ErrInvalidURL
-	}
-	host := u.Hostname()
-	if host == "" {
-		return nil, ErrInvalidURL
-	}
-	ips, err := net.LookupIP(host)
-	if err != nil {
+	if err := validateURL(u); err != nil {
 		return nil, err
-	}
-	for _, ip := range ips {
-		if isPrivateIP(ip) {
-			return nil, ErrPrivateHost
-		}
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
@@ -78,17 +68,7 @@ func (s *SafeFetcher) Fetch(ctx context.Context, rawURL string) ([]byte, error) 
 		return nil, err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		if resp.StatusCode == http.StatusFound || resp.StatusCode == http.StatusMovedPermanently || resp.StatusCode == http.StatusTemporaryRedirect || resp.StatusCode == http.StatusSeeOther {
-			loc := resp.Header.Get("Location")
-			if loc == "" {
-				return nil, fmt.Errorf("bad status: %d", resp.StatusCode)
-			}
-			if s.maxRedirect < 0 {
-				return nil, fmt.Errorf("too many redirects")
-			}
-			return s.Fetch(ctx, loc)
-		}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return nil, fmt.Errorf("bad status: %d", resp.StatusCode)
 	}
 	limited := io.LimitReader(resp.Body, s.maxBytes+1)
@@ -104,4 +84,39 @@ func (s *SafeFetcher) Fetch(ctx context.Context, rawURL string) ([]byte, error) 
 		// allow if looks like image? but spec says sniff; we'll be lenient on header
 	}
 	return data, nil
+}
+
+func safeDialContext(dialer *net.Dialer) func(context.Context, string, string) (net.Conn, error) {
+	return func(ctx context.Context, network, address string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(address)
+		if err != nil {
+			return nil, err
+		}
+		ip, err := resolvePublicIP(ctx, host)
+		if err != nil {
+			return nil, err
+		}
+		return dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
+	}
+}
+
+func validateURL(u *url.URL) error {
+	if u == nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
+		return ErrInvalidURL
+	}
+	_, err := resolvePublicIP(context.Background(), u.Hostname())
+	return err
+}
+
+func resolvePublicIP(ctx context.Context, host string) (net.IP, error) {
+	ips, err := net.DefaultResolver.LookupIP(ctx, "ip", host)
+	if err != nil {
+		return nil, err
+	}
+	for _, ip := range ips {
+		if !isPrivateIP(ip) {
+			return ip, nil
+		}
+	}
+	return nil, ErrPrivateHost
 }

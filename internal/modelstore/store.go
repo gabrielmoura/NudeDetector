@@ -7,7 +7,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 )
+
+const downloadTimeout = 10 * time.Minute
 
 func Ensure(path, sourceURL, expectedSHA256 string) error {
 	if _, err := os.Stat(path); err == nil {
@@ -19,8 +23,12 @@ func Ensure(path, sourceURL, expectedSHA256 string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("create model directory: %w", err)
 	}
+	if sourceURL == "" || expectedSHA256 == "" {
+		return fmt.Errorf("model download source and checksum are required")
+	}
 
-	response, err := http.Get(sourceURL)
+	client := &http.Client{Timeout: downloadTimeout}
+	response, err := client.Get(sourceURL)
 	if err != nil {
 		return fmt.Errorf("download model: %w", err)
 	}
@@ -44,7 +52,8 @@ func Ensure(path, sourceURL, expectedSHA256 string) error {
 	if err := temporary.Close(); err != nil {
 		return fmt.Errorf("close model: %w", err)
 	}
-	if actual := fmt.Sprintf("%x", hash.Sum(nil)); actual != expectedSHA256 {
+	actual := fmt.Sprintf("%x", hash.Sum(nil))
+	if !strings.EqualFold(actual, expectedSHA256) {
 		return fmt.Errorf("downloaded model checksum mismatch: got %s", actual)
 	}
 	if err := os.Chmod(temporaryPath, 0o644); err != nil {
