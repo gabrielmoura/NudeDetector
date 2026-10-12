@@ -17,7 +17,7 @@ import (
 	"github.com/gabrielmoura/NudeDetector/internal/util"
 )
 
-func (h *Handler) classify(data []byte) (*moderation.ModerationResult, error) {
+func (h *Handler) Classify(ctx context.Context, data []byte) (*moderation.ModerationResult, error) {
 	hash := util.SHA256(data)
 	if h.cache != nil {
 		if e, ok := h.cache.Get(hash + "|v1|" + h.meta.Name + "|" + h.meta.Version); ok {
@@ -43,7 +43,7 @@ func (h *Handler) classify(data []byte) (*moderation.ModerationResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	logits, err := h.worker.Infer(context.Background(), tensor)
+	logits, err := h.worker.Infer(ctx, tensor)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +107,7 @@ func (h *Handler) handleModeration(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusUnprocessableEntity, "image_too_many_pixels", "image too large")
 			return
 		}
-		res, err := h.classify(data)
+		res, err := h.Classify(r.Context(), data)
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, "inference_failed", err.Error())
 			return
@@ -145,7 +145,7 @@ func (h *Handler) handleModeration(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusUnprocessableEntity, "image_too_many_pixels", "image too large")
 			return
 		}
-		res, err := h.classify(data)
+		res, err := h.Classify(r.Context(), data)
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, "inference_failed", err.Error())
 			return

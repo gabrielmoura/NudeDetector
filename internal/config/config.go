@@ -12,6 +12,8 @@ type Config struct {
 	// Classifier
 	ClassifierModelPath    string
 	ClassifierMetadataPath string
+	ClassifierModelURL     string
+	ClassifierModelSHA256  string
 	PornReviewThreshold    float64
 	PornThreshold          float64
 	ClassifyHentaiAsPorn   bool
@@ -41,12 +43,13 @@ type Config struct {
 	CacheMaxEntries int
 	CacheTTL        int64 // ms
 
-	// Explicit detector (optional)
-	ExplicitDetectorEnabled      bool
-	ExplicitDetectorModelPath    string
-	ExplicitDetectorConcurrency  int
-	ExplicitDetectorMinPornScore float64
-	ExplicitDetectorMaxPornScore float64
+	// NudeNet detector used by the export endpoint.
+	DetectorEnabled      bool
+	DetectorModelPath    string
+	DetectorModelURL     string
+	DetectorModelSHA256  string
+	DetectorScoreMinimum float64
+	DetectorIoUThreshold float64
 
 	// Observability
 	PPROFEnabled bool
@@ -58,6 +61,8 @@ func Load() (*Config, error) {
 
 		ClassifierModelPath:    getEnv("CLASSIFIER_MODEL_PATH", "./models/model.onnx"),
 		ClassifierMetadataPath: getEnv("CLASSIFIER_METADATA_PATH", "./models/model.json"),
+		ClassifierModelURL:     getEnv("CLASSIFIER_MODEL_URL", "https://huggingface.co/onnx-community/nsfw-classifier-ONNX/resolve/main/onnx/model.onnx"),
+		ClassifierModelSHA256:  getEnv("CLASSIFIER_MODEL_SHA256", "d6e841f61f193d9f435b464748c772b4096edd941c9f12b3a05bcb655fb267eb"),
 		PornReviewThreshold:    getEnvFloat("PORN_REVIEW_THRESHOLD", 0.40),
 		PornThreshold:          getEnvFloat("PORN_THRESHOLD", 0.80),
 		ClassifyHentaiAsPorn:   getEnvBool("CLASSIFY_HENTAI_AS_PORNOGRAPHY", false),
@@ -86,12 +91,13 @@ func Load() (*Config, error) {
 		CacheMaxEntries: getEnvInt("CACHE_MAX_ENTRIES", 1000),
 		CacheTTL:        getEnvInt64("CACHE_TTL", 3600_000),
 
-		ExplicitDetectorEnabled:      getEnvBool("EXPLICIT_DETECTOR_ENABLED", false),
-		ExplicitDetectorModelPath:    getEnv("EXPLICIT_DETECTOR_MODEL_PATH", "./models/explicit.onnx"),
-		ExplicitDetectorConcurrency:  getEnvInt("EXPLICIT_DETECTOR_CONCURRENCY", 2),
-		ExplicitDetectorMinPornScore: getEnvFloat("EXPLICIT_DETECTOR_MIN_PORN_SCORE", 0.25),
-		ExplicitDetectorMaxPornScore: getEnvFloat("EXPLICIT_DETECTOR_MAX_PORN_SCORE", 0.80),
-		PPROFEnabled:                 getEnvBool("PPROF_ENABLED", false),
+		DetectorEnabled:      getEnvBool("DETECTOR_ENABLED", true),
+		DetectorModelPath:    getEnv("DETECTOR_MODEL_PATH", "./models/320n.onnx"),
+		DetectorModelURL:     getEnv("DETECTOR_MODEL_URL", "https://github.com/notAI-tech/NudeNet/releases/download/v3.4-weights/320n.onnx"),
+		DetectorModelSHA256:  getEnv("DETECTOR_MODEL_SHA256", "c15d8273adad2d0a92f014cc69ab2d6c311a06777a55545f2c4eb46f51911f0f"),
+		DetectorScoreMinimum: getEnvFloat("DETECTOR_SCORE_MINIMUM", 0.25),
+		DetectorIoUThreshold: getEnvFloat("DETECTOR_IOU_THRESHOLD", 0.45),
+		PPROFEnabled:         getEnvBool("PPROF_ENABLED", false),
 	}
 
 	if c.PornReviewThreshold < 0 || c.PornReviewThreshold > 1 {
@@ -105,6 +111,12 @@ func Load() (*Config, error) {
 	}
 	if c.MaxPendingInferences < 1 {
 		c.MaxPendingInferences = 1
+	}
+	if c.DetectorScoreMinimum < 0 || c.DetectorScoreMinimum > 1 {
+		return nil, fmt.Errorf("invalid DETECTOR_SCORE_MINIMUM")
+	}
+	if c.DetectorIoUThreshold < 0 || c.DetectorIoUThreshold > 1 {
+		return nil, fmt.Errorf("invalid DETECTOR_IOU_THRESHOLD")
 	}
 
 	return c, nil

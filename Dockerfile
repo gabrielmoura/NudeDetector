@@ -6,6 +6,8 @@ WORKDIR /app
 ARG ONNXRUNTIME_VERSION=1.22.0
 ARG MODEL_URL=https://huggingface.co/onnx-community/nsfw-classifier-ONNX/resolve/main/onnx/model.onnx
 ARG MODEL_SHA256=d6e841f61f193d9f435b464748c772b4096edd941c9f12b3a05bcb655fb267eb
+ARG DETECTOR_MODEL_URL=https://github.com/notAI-tech/NudeNet/releases/download/v3.4-weights/320n.onnx
+ARG DETECTOR_MODEL_SHA256=c15d8273adad2d0a92f014cc69ab2d6c311a06777a55545f2c4eb46f51911f0f
 
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends ca-certificates curl \
@@ -21,6 +23,8 @@ RUN curl --fail --location --silent --show-error \
 
 RUN curl --fail --location --silent --show-error "$MODEL_URL" --output /out/model.onnx \
 	&& echo "$MODEL_SHA256  /out/model.onnx" | sha256sum --check --status
+RUN curl --fail --location --silent --show-error "$DETECTOR_MODEL_URL" --output /out/320n.onnx \
+	&& echo "$DETECTOR_MODEL_SHA256  /out/320n.onnx" | sha256sum --check --status
 
 COPY go.mod go.sum ./
 RUN go mod download
@@ -34,12 +38,13 @@ FROM debian:bookworm-slim
 WORKDIR /app
 
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends ca-certificates curl \
+	&& apt-get install -y --no-install-recommends ca-certificates curl ffmpeg \
 	&& rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /out/nude-detector /app/nude-detector
 COPY --from=builder /out/lib /app/lib
 COPY --from=builder /out/model.onnx /app/models/model.onnx
+COPY --from=builder /out/320n.onnx /app/models/320n.onnx
 COPY models/model.json /app/models/model.json
 
 ENV ONNXRUNTIME_SHARED_LIBRARY_PATH=/app/lib/libonnxruntime.so.1.22.0

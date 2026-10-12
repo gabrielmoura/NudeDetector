@@ -13,6 +13,9 @@ MODEL_DIR := models
 MODEL_PATH := $(MODEL_DIR)/model.onnx
 MODEL_URL := https://huggingface.co/onnx-community/nsfw-classifier-ONNX/resolve/main/onnx/model.onnx
 MODEL_SHA256 := d6e841f61f193d9f435b464748c772b4096edd941c9f12b3a05bcb655fb267eb
+DETECTOR_MODEL_PATH := $(MODEL_DIR)/320n.onnx
+DETECTOR_MODEL_URL := https://github.com/notAI-tech/NudeNet/releases/download/v3.4-weights/320n.onnx
+DETECTOR_MODEL_SHA256 := c15d8273adad2d0a92f014cc69ab2d6c311a06777a55545f2c4eb46f51911f0f
 
 ONNXRUNTIME_VERSION := 1.22.0
 ONNXRUNTIME_DIR := .cache/onnxruntime/$(ONNXRUNTIME_VERSION)
@@ -41,6 +44,11 @@ model: ## Baixa e valida o modelo ONNX versionado
 		mv $(MODEL_PATH).tmp $(MODEL_PATH); \
 	fi
 	@echo "$(MODEL_SHA256)  $(MODEL_PATH)" | sha256sum --check
+	@if [ ! -f $(DETECTOR_MODEL_PATH) ]; then \
+		curl --fail --location --silent --show-error $(DETECTOR_MODEL_URL) --output $(DETECTOR_MODEL_PATH).tmp; \
+		mv $(DETECTOR_MODEL_PATH).tmp $(DETECTOR_MODEL_PATH); \
+	fi
+	@echo "$(DETECTOR_MODEL_SHA256)  $(DETECTOR_MODEL_PATH)" | sha256sum --check
 
 .PHONY: onnxruntime
 onnxruntime: ## Baixa a Runtime ONNX CPU compatível para desenvolvimento local
@@ -95,6 +103,8 @@ docker: ## Cria a imagem Docker de produção
 		--build-arg ONNXRUNTIME_VERSION=$(ONNXRUNTIME_VERSION) \
 		--build-arg MODEL_URL=$(MODEL_URL) \
 		--build-arg MODEL_SHA256=$(MODEL_SHA256) \
+		--build-arg DETECTOR_MODEL_URL=$(DETECTOR_MODEL_URL) \
+		--build-arg DETECTOR_MODEL_SHA256=$(DETECTOR_MODEL_SHA256) \
 		-t $(IMAGE):$(VERSION) \
 		-t $(IMAGE):latest \
 		.
