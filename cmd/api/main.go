@@ -186,6 +186,11 @@ func newRuntime(loadDetector bool) (*runtime, error) {
 		ort.DestroyEnvironment()
 		return nil, err
 	}
+	if err := warmupClassifier(engine, classifier, metadata); err != nil {
+		engine.Close()
+		ort.DestroyEnvironment()
+		return nil, err
+	}
 	policy := moderation.NewPolicy(cfg.PornReviewThreshold, cfg.PornThreshold)
 	fetcher := downloader.NewSafeFetcher(cfg.DialTimeout, cfg.TLSHandshakeTimeout, cfg.ResponseHeaderTimeout, cfg.DownloadTimeout, cfg.MaxRedirects, cfg.MaxImageBytes)
 	var resultCache cache.Cache
@@ -217,6 +222,33 @@ func newRuntime(loadDetector bool) (*runtime, error) {
 		detector: bodyDetector,
 		httpAddr: cfg.HTTPAddr,
 	}, nil
+}
+
+func warmupClassifier(
+	engine inference.Engine,
+	classifier moderation.Classifier,
+	metadata *model.ModelMetadata,
+) error {
+	shape := engine.InputShape()
+	if len(shape) != 4 || shape[0] != 1 || shape[1] != 3 ||
+		shape[2] != int64(metadata.Height) || shape[3] != int64(metadata.Width) {
+		return fmt.Errorf("classifier input shape %v is incompatible with metadata %dx%d NCHW", shape, metadata.Width, metadata.Height)
+	}
+
+	size := int(shape[0] * shape[1] * shape[2] * shape[3])
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	logits, err := engine.Infer(ctx, make([]float32, size))
+	if err != nil {
+		return fmt.Errorf("classifier warm-up: %w", err)
+	}
+	if len(logits) != len(metadata.Labels) {
+		return fmt.Errorf("classifier warm-up returned %d classes, metadata defines %d labels", len(logits), len(metadata.Labels))
+	}
+	if _, err := classifier.Classify(inference.StableSoftmax(logits)); err != nil {
+		return fmt.Errorf("validate classifier warm-up output: %w", err)
+	}
+	return nil
 }
 
 func (r *runtime) Close() {

@@ -2,8 +2,22 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"testing"
+
+	"github.com/gabrielmoura/NudeDetector/internal/inference"
+	"github.com/gabrielmoura/NudeDetector/internal/model"
+	"github.com/gabrielmoura/NudeDetector/internal/moderation"
 )
+
+type testEngine struct {
+	shape  []int64
+	logits inference.Logits
+}
+
+func (e testEngine) Infer(context.Context, []float32) (inference.Logits, error) { return e.logits, nil }
+func (e testEngine) Close() error                                               { return nil }
+func (e testEngine) InputShape() []int64                                        { return e.shape }
 
 func TestRootCommandExposesAPIAndLocalCommands(t *testing.T) {
 	t.Parallel()
@@ -24,5 +38,32 @@ func TestRootCommandExposesAPIAndLocalCommands(t *testing.T) {
 	}
 	if output.Len() == 0 {
 		t.Fatal("root help did not produce output")
+	}
+}
+
+func TestWarmupClassifierValidatesShapeAndClassCount(t *testing.T) {
+	t.Parallel()
+
+	metadata := &model.ModelMetadata{
+		Width:     224,
+		Height:    224,
+		Labels:    []string{"drawings", "hentai", "neutral", "porn", "sexy"},
+		PornLabel: "porn",
+	}
+	classifier, err := moderation.NewClassifier(metadata)
+	if err != nil {
+		t.Fatalf("NewClassifier() error = %v", err)
+	}
+	engine := testEngine{
+		shape:  []int64{1, 3, 224, 224},
+		logits: inference.Logits{1, 2, 3, 4, 5},
+	}
+	if err := warmupClassifier(engine, classifier, metadata); err != nil {
+		t.Fatalf("warmupClassifier() error = %v", err)
+	}
+
+	engine.logits = inference.Logits{1}
+	if err := warmupClassifier(engine, classifier, metadata); err == nil {
+		t.Fatal("warmupClassifier() error = nil, want class count mismatch")
 	}
 }
