@@ -1,0 +1,9 @@
+/bin/
+/.cache/
+/.opencode/
+/main
+/nude-detector
+/models/*.onnx
+/models/testdata/
+/ref/
+/session-*.md

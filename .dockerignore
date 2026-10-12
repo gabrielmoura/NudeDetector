@@ -1,0 +1,10 @@
+.git
+.gitignore
+.opencode
+.cache
+bin
+main
+nude-detector
+ref
+session-*.md
+models/*.onnx
