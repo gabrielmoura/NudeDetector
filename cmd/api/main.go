@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -75,7 +76,13 @@ func newRootCommand() *cobra.Command {
 	}
 	root.PersistentFlags().StringVar(&options.HTTPAddr, "addr", "", "HTTP listen address (overrides HTTP_ADDR)")
 	root.PersistentFlags().StringVar(&options.RuntimeLibrary, "runtime-library", "", "path to the ONNX Runtime shared library")
-	root.AddCommand(newServeCommand(&options), newClassifyCommand(&options), newExportCommand(&options), newVersionCommand())
+	root.AddCommand(
+		newServeCommand(&options),
+		newClassifyCommand(&options),
+		newExportCommand(&options),
+		newScanCommand(&options),
+		newVersionCommand(),
+	)
 	return root
 }
 
@@ -364,8 +371,19 @@ func serve(runtime *runtime) error {
 }
 
 func detectContentType(path string, data []byte) string {
-	if extension := filepath.Ext(path); extension == ".gif" {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".gif":
 		return "image/gif"
+	case ".mp4", ".m4v":
+		return "video/mp4"
+	case ".mov":
+		return "video/quicktime"
+	case ".avi":
+		return "video/x-msvideo"
+	case ".mkv":
+		return "video/x-matroska"
+	case ".webm":
+		return "video/webm"
 	}
 	return http.DetectContentType(data)
 }

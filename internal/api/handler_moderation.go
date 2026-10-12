@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -16,6 +18,8 @@ import (
 	"github.com/gabrielmoura/NudeDetector/internal/observability"
 	"github.com/gabrielmoura/NudeDetector/internal/util"
 )
+
+var errDetectorUnavailable = errors.New("visual details detector is unavailable")
 
 func (h *Handler) Classify(ctx context.Context, data []byte) (*moderation.ModerationResult, error) {
 	hash := util.SHA256(data)
@@ -80,10 +84,19 @@ func (h *Handler) handleModeration(w http.ResponseWriter, r *http.Request) {
 		)
 	}()
 
+	if _, found := r.URL.Query()["details"]; found {
+		writeErr(w, http.StatusBadRequest, "invalid_request", "details must be provided in the request body")
+		return
+	}
 	ct := r.Header.Get("Content-Type")
 	if strings.Contains(ct, "multipart/form-data") {
 		if err := r.ParseMultipartForm(10 << 20); err != nil {
 			writeErr(w, http.StatusBadRequest, "invalid_request", err.Error())
+			return
+		}
+		details, err := parseDetails(r.FormValue("details"))
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "invalid_request", "details must be boolean")
 			return
 		}
 		file, _, err := r.FormFile("image")
@@ -110,12 +123,12 @@ func (h *Handler) handleModeration(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusUnprocessableEntity, "image_too_many_pixels", "image too large")
 			return
 		}
-		res, err := h.Classify(r.Context(), data)
+		response, err := h.classifyResponse(r.Context(), data, details)
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "inference_failed", err.Error())
+			writeModerationError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, res)
+		writeJSON(w, http.StatusOK, response)
 		observability.RequestsTotal.WithLabelValues("POST", "/v1/moderation/pornography", strconv.Itoa(http.StatusOK)).Inc()
 		return
 	}
@@ -148,15 +161,52 @@ func (h *Handler) handleModeration(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusUnprocessableEntity, "image_too_many_pixels", "image too large")
 			return
 		}
-		res, err := h.Classify(r.Context(), data)
+		response, err := h.classifyResponse(r.Context(), data, req.Details)
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "inference_failed", err.Error())
+			writeModerationError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, res)
+		writeJSON(w, http.StatusOK, response)
 		observability.RequestsTotal.WithLabelValues("POST", "/v1/moderation/pornography", strconv.Itoa(http.StatusOK)).Inc()
 		return
 	}
 
 	writeErr(w, http.StatusUnsupportedMediaType, "unsupported_media_type", "unsupported")
+}
+
+func (h *Handler) classifyResponse(
+	ctx context.Context,
+	data []byte,
+	details bool,
+) (ModerationResponse, error) {
+	result, err := h.Classify(ctx, data)
+	if err != nil {
+		return ModerationResponse{}, err
+	}
+	if !details {
+		return newModerationResponse(result, false, nil), nil
+	}
+	if h.detector == nil {
+		return ModerationResponse{}, errDetectorUnavailable
+	}
+	detections, err := h.detector.Detect(ctx, data)
+	if err != nil {
+		return ModerationResponse{}, fmt.Errorf("detect visual details: %w", err)
+	}
+	return newModerationResponse(result, true, detections), nil
+}
+
+func writeModerationError(w http.ResponseWriter, err error) {
+	if errors.Is(err, errDetectorUnavailable) {
+		writeErr(w, http.StatusServiceUnavailable, "detector_unavailable", err.Error())
+		return
+	}
+	writeErr(w, http.StatusInternalServerError, "inference_failed", err.Error())
+}
+
+func parseDetails(value string) (bool, error) {
+	if value == "" {
+		return false, nil
+	}
+	return strconv.ParseBool(value)
 }

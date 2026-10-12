@@ -1,0 +1,30 @@
+info:
+  name: Health - processo vivo
+  type: http
+  seq: 1
+
+http:
+  method: GET
+  url: http://localhost:8080/health
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 10000
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  # Health check
+
+  Confirma que o processo HTTP está vivo. Não depende do modelo ONNX estar
+  pronto para inferência.
+
+  **Endpoint:** `GET /health`
+
+  **Resposta `200 OK`:**
+
+  ```json
+  {"ok": true}
+  ```
+

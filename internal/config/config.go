@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 )
@@ -56,6 +57,10 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
+	if err := validateEnvironmentSyntax(); err != nil {
+		return nil, err
+	}
+
 	c := &Config{
 		HTTPAddr: getEnv("HTTP_ADDR", ":8080"),
 
@@ -100,26 +105,95 @@ func Load() (*Config, error) {
 		PPROFEnabled:         getEnvBool("PPROF_ENABLED", false),
 	}
 
-	if c.PornReviewThreshold < 0 || c.PornReviewThreshold > 1 {
+	if !validUnitInterval(c.PornReviewThreshold) {
 		return nil, fmt.Errorf("invalid PORN_REVIEW_THRESHOLD")
 	}
-	if c.PornThreshold < 0 || c.PornThreshold > 1 {
+	if !validUnitInterval(c.PornThreshold) {
 		return nil, fmt.Errorf("invalid PORN_THRESHOLD")
 	}
+	if c.PornReviewThreshold > c.PornThreshold {
+		return nil, fmt.Errorf("PORN_REVIEW_THRESHOLD must be less than or equal to PORN_THRESHOLD")
+	}
+	if c.MaxImageBytes <= 0 {
+		return nil, fmt.Errorf("MAX_IMAGE_BYTES must be greater than zero")
+	}
+	if c.MaxImagePixels <= 0 {
+		return nil, fmt.Errorf("MAX_IMAGE_PIXELS must be greater than zero")
+	}
+	if c.MaxWidth <= 0 || c.MaxHeight <= 0 {
+		return nil, fmt.Errorf("MAX_WIDTH and MAX_HEIGHT must be greater than zero")
+	}
+	if c.DownloadTimeout <= 0 || c.DialTimeout <= 0 || c.TLSHandshakeTimeout <= 0 || c.ResponseHeaderTimeout <= 0 {
+		return nil, fmt.Errorf("download timeouts must be greater than zero")
+	}
+	if c.MaxRedirects < 0 {
+		return nil, fmt.Errorf("MAX_REDIRECTS must not be negative")
+	}
 	if c.InferenceConcurrency < 1 {
-		c.InferenceConcurrency = 1
+		return nil, fmt.Errorf("INFERENCE_CONCURRENCY must be greater than zero")
 	}
 	if c.MaxPendingInferences < 1 {
-		c.MaxPendingInferences = 1
+		return nil, fmt.Errorf("MAX_PENDING_INFERENCES must be greater than zero")
 	}
-	if c.DetectorScoreMinimum < 0 || c.DetectorScoreMinimum > 1 {
+	if c.ONNXIntraOpThreads < 0 || c.ONNXInterOpThreads < 0 {
+		return nil, fmt.Errorf("ONNX thread counts must not be negative")
+	}
+	if c.CacheMaxEntries <= 0 || c.CacheTTL <= 0 {
+		return nil, fmt.Errorf("CACHE_MAX_ENTRIES and CACHE_TTL must be greater than zero")
+	}
+	if !validUnitInterval(c.DetectorScoreMinimum) {
 		return nil, fmt.Errorf("invalid DETECTOR_SCORE_MINIMUM")
 	}
-	if c.DetectorIoUThreshold < 0 || c.DetectorIoUThreshold > 1 {
+	if !validUnitInterval(c.DetectorIoUThreshold) {
 		return nil, fmt.Errorf("invalid DETECTOR_IOU_THRESHOLD")
 	}
 
 	return c, nil
+}
+
+func validUnitInterval(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0) && value >= 0 && value <= 1
+}
+
+func validateEnvironmentSyntax() error {
+	integerKeys := []string{
+		"MAX_IMAGE_BYTES", "MAX_IMAGE_PIXELS", "MAX_WIDTH", "MAX_HEIGHT",
+		"DOWNLOAD_TIMEOUT", "DIAL_TIMEOUT", "TLS_HANDSHAKE_TIMEOUT",
+		"RESPONSE_HEADER_TIMEOUT", "MAX_REDIRECTS", "INFERENCE_CONCURRENCY",
+		"MAX_PENDING_INFERENCES", "ONNX_INTRA_OP_THREADS", "ONNX_INTER_OP_THREADS",
+		"CACHE_MAX_ENTRIES", "CACHE_TTL",
+	}
+	for _, key := range integerKeys {
+		if value := os.Getenv(key); value != "" {
+			if _, err := strconv.ParseInt(value, 10, 64); err != nil {
+				return fmt.Errorf("invalid %s: must be an integer", key)
+			}
+		}
+	}
+
+	floatKeys := []string{
+		"PORN_REVIEW_THRESHOLD", "PORN_THRESHOLD", "DETECTOR_SCORE_MINIMUM",
+		"DETECTOR_IOU_THRESHOLD",
+	}
+	for _, key := range floatKeys {
+		if value := os.Getenv(key); value != "" {
+			if _, err := strconv.ParseFloat(value, 64); err != nil {
+				return fmt.Errorf("invalid %s: must be a number", key)
+			}
+		}
+	}
+
+	booleanKeys := []string{
+		"CLASSIFY_HENTAI_AS_PORNOGRAPHY", "CACHE_ENABLED", "DETECTOR_ENABLED", "PPROF_ENABLED",
+	}
+	for _, key := range booleanKeys {
+		if value := os.Getenv(key); value != "" {
+			if _, err := strconv.ParseBool(value); err != nil {
+				return fmt.Errorf("invalid %s: must be boolean", key)
+			}
+		}
+	}
+	return nil
 }
 
 func getEnv(k, def string) string {

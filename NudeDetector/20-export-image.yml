@@ -1,0 +1,59 @@
+info:
+  name: Export - imagem anotada
+  type: http
+  seq: 20
+
+http:
+  method: POST
+  url: http://localhost:8080/v1/moderation/export
+  body:
+    type: multipart-form
+    data:
+      - name: image
+        type: file
+        value:
+          - ./fixtures/sample.jpg
+        contentType: image/jpeg
+      - name: draw_boxes
+        type: text
+        value: "true"
+      - name: blur
+        type: text
+        value: "false"
+      - name: blur_radius
+        type: text
+        value: "25"
+      - name: frame_time_ms
+        type: text
+        value: "0"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 120000
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+docs: |-
+  # Exportar imagem com boxes, categorias e blur
+
+  Executa o detector visual NudeNet e retorna uma imagem JPEG anotada.
+
+  **Endpoint:** `POST /v1/moderation/export`
+
+  **Campos multipart:**
+
+  | Campo | Tipo | Padrão | Descrição |
+  | --- | --- | --- | --- |
+  | `image` | arquivo | obrigatório | JPEG, PNG, WebP, GIF ou vídeo aceito pelo FFmpeg |
+  | `draw_boxes` | boolean | `true` | desenha categoria e bounding box |
+  | `blur` | boolean | `false` | aplica blur às regiões detectadas |
+  | `blur_radius` | número | `25` | valor entre `1` e `100` |
+  | `frame_time_ms` | inteiro | `0` | posição do frame para GIF/vídeo; `0` é o primeiro |
+
+  **Resposta `200 OK`:** `image/jpeg` com o header
+  `X-NudeDetector-Detections` contendo a quantidade de detecções.
+
+  Erros de entrada ou mídia retornam `400`, `413` ou `422 export_failed`.
+

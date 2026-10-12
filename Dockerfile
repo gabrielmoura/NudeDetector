@@ -42,6 +42,18 @@ FROM debian:bookworm-slim
 
 WORKDIR /app
 
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_TIME=unknown
+
+LABEL org.opencontainers.image.title="NudeDetector" \
+	org.opencontainers.image.description="Go and ONNX Runtime pornography moderation API and CLI" \
+	org.opencontainers.image.version="${VERSION}" \
+	org.opencontainers.image.revision="${COMMIT}" \
+	org.opencontainers.image.created="${BUILD_TIME}" \
+	org.opencontainers.image.source="https://github.com/gabrielmoura/NudeDetector" \
+	org.opencontainers.image.licenses="MIT"
+
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends ca-certificates curl ffmpeg \
 	&& rm -rf /var/lib/apt/lists/*

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/gabrielmoura/NudeDetector/internal/detector"
 	"github.com/gabrielmoura/NudeDetector/internal/exporter"
 	"github.com/gabrielmoura/NudeDetector/internal/media"
 )
@@ -24,16 +25,19 @@ func (h *Handler) Export(
 	contentType string,
 	options ExportOptions,
 ) ([]byte, int, error) {
-	if h.detector == nil {
-		return nil, 0, errors.New("export detector is disabled")
-	}
-	frame, err := media.ImageFrame(ctx, data, contentType, options.FrameTimeMS)
+	result, detections, err := h.ExportDetailed(ctx, data, contentType, options)
+	return result, len(detections), err
+}
+
+func (h *Handler) ExportDetailed(
+	ctx context.Context,
+	data []byte,
+	contentType string,
+	options ExportOptions,
+) ([]byte, []detector.Detection, error) {
+	frame, detections, err := h.detectDetails(ctx, data, contentType, options.FrameTimeMS)
 	if err != nil {
-		return nil, 0, err
-	}
-	detections, err := h.detector.Detect(ctx, frame)
-	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 	result, err := exporter.Render(frame, detections, exporter.Options{
 		DrawBoxes:  options.DrawBoxes,
@@ -41,9 +45,39 @@ func (h *Handler) Export(
 		BlurRadius: options.BlurRadius,
 	})
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
-	return result, len(detections), nil
+	return result, detections, nil
+}
+
+func (h *Handler) DetectDetails(
+	ctx context.Context,
+	data []byte,
+	contentType string,
+	frameTimeMS int64,
+) ([]detector.Detection, error) {
+	_, detections, err := h.detectDetails(ctx, data, contentType, frameTimeMS)
+	return detections, err
+}
+
+func (h *Handler) detectDetails(
+	ctx context.Context,
+	data []byte,
+	contentType string,
+	frameTimeMS int64,
+) ([]byte, []detector.Detection, error) {
+	if h.detector == nil {
+		return nil, nil, errors.New("export detector is disabled")
+	}
+	frame, err := media.ImageFrame(ctx, data, contentType, frameTimeMS)
+	if err != nil {
+		return nil, nil, err
+	}
+	detections, err := h.detector.Detect(ctx, frame)
+	if err != nil {
+		return nil, nil, err
+	}
+	return frame, detections, nil
 }
 
 func (h *Handler) handleExport(w http.ResponseWriter, r *http.Request) {

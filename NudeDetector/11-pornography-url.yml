@@ -1,0 +1,54 @@
+info:
+  name: Pornography - URL pública
+  type: http
+  seq: 11
+
+http:
+  method: POST
+  url: http://localhost:8080/v1/moderation/pornography
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "url": "https://example.com/images/sample.jpg",
+        "details": true
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 60000
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+docs: |-
+  # Classificar imagem por URL
+
+  Baixa e classifica uma imagem hospedada em URL pública.
+
+  Envie `"details": true` no JSON para incluir `scores` com todas as classes e
+  as detecções NudeNet. O campo funciona igualmente para upload multipart e URL
+  JSON.
+
+  **Endpoint:** `POST /v1/moderation/pornography`
+
+  **Body:**
+
+  ```json
+  {"url": "https://example.com/images/sample.jpg"}
+  ```
+
+  Para detalhes, envie `{"url":"https://example.com/images/sample.jpg",
+  "details":true}`.
+
+  Por segurança, somente `http` e `https` são aceitos. Hosts locais,
+  endereços privados, metadata services e redirects para redes internas são
+  bloqueados. O download está sujeito aos limites e timeouts configurados.
+
+  Erros de validação do corpo retornam `400 invalid_url`. Falhas de rede,
+  timeout ou bloqueio SSRF são reportados pela implementação atual como
+  `502 download_failed`.

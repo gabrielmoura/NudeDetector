@@ -6,5 +6,5 @@ import (
 )
 
 func Setup() *slog.Logger {
-	return slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	return slog.New(slog.NewJSONHandler(os.Stderr, nil))
 }

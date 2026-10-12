@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"path/filepath"
 	"testing"
 
 	"github.com/gabrielmoura/NudeDetector/internal/inference"
@@ -23,7 +24,7 @@ func TestRootCommandExposesAPIAndLocalCommands(t *testing.T) {
 	t.Parallel()
 
 	root := newRootCommand()
-	for _, name := range []string{"serve", "classify", "export"} {
+	for _, name := range []string{"serve", "classify", "export", "scan"} {
 		if command, _, err := root.Find([]string{name}); err != nil || command == root {
 			t.Fatalf("command %q is not registered: %v", name, err)
 		}
@@ -38,6 +39,31 @@ func TestRootCommandExposesAPIAndLocalCommands(t *testing.T) {
 	}
 	if output.Len() == 0 {
 		t.Fatal("root help did not produce output")
+	}
+}
+
+func TestScanMediaKindAndOutputPath(t *testing.T) {
+	t.Parallel()
+
+	if got := scanMediaKind("sample.JPEG"); got != "image" {
+		t.Fatalf("scanMediaKind(image) = %q, want image", got)
+	}
+	if got := scanMediaKind("clip.MP4"); got != "media" {
+		t.Fatalf("scanMediaKind(media) = %q, want media", got)
+	}
+	if got := scanMediaKind("notes.txt"); got != "" {
+		t.Fatalf("scanMediaKind(unsupported) = %q, want empty", got)
+	}
+
+	want := filepath.Join("out", "nested", "clip-moderated.jpg")
+	if got := scanOutputPath("input", "out", filepath.Join("input", "nested", "clip.mp4")); got != want {
+		t.Fatalf("scanOutputPath() = %q, want %q", got, want)
+	}
+	if !pathWithin("/data/input", "/data/input/output") {
+		t.Fatal("pathWithin() = false, want nested path to be detected")
+	}
+	if pathWithin("/data/input", "/data/other") {
+		t.Fatal("pathWithin() = true, want sibling path to be outside")
 	}
 }
 

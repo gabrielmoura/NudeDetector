@@ -1,0 +1,76 @@
+info:
+  name: Pornography - upload de imagem
+  type: http
+  seq: 10
+
+http:
+  method: POST
+  url: http://localhost:8080/v1/moderation/pornography
+  body:
+    type: multipart-form
+    data:
+      - name: image
+        type: file
+        value:
+          - ./fixtures/sample.jpg
+        contentType: image/jpeg
+      - name: details
+        type: text
+        value: "true"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 60000
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+docs: |-
+  # Classificar imagem por upload
+
+  Estima a probabilidade semântica de pornografia usando `P(porn)`. A imagem
+  deve ser enviada no campo multipart `image`.
+
+  Envie `details=true` como campo multipart para incluir `scores` com todas as
+  classes e as detecções NudeNet. Sem o campo, a resposta é compacta.
+
+  **Endpoint:** `POST /v1/moderation/pornography`
+
+  **Content-Type:** `multipart/form-data`
+
+  **Resposta `200 OK`:**
+
+  ```json
+  {
+    "pornography_score": 0.0035,
+    "pornography_percent": 0.35,
+    "classification": "not_pornographic",
+    "scores": {
+      "drawings": 0.0007,
+      "hentai": 0.0012,
+      "neutral": 0.0026,
+      "porn": 0.0035,
+      "sexy": 0.9920
+    },
+    "thresholds": {"review": 0.4, "pornographic": 0.8},
+    "model": {"name": "nsfw-classifier", "version": "1.0.0"},
+    "processing": {"cached": false}
+  }
+  ```
+
+  Quando solicitado, `details` é uma lista de detecções com `label`, `score` e
+  `box` (`x`, `y`, `width`, `height`).
+
+  `sexy`, `hentai` e `drawings` são preservados, mas não substituem
+  `pornography_score`. Não envie `url` junto com `image`.
+
+  Os labels NudeNet disponíveis são `FEMALE_GENITALIA_COVERED`, `FACE_FEMALE`,
+  `BUTTOCKS_EXPOSED`, `FEMALE_BREAST_EXPOSED`, `FEMALE_GENITALIA_EXPOSED`,
+  `MALE_BREAST_EXPOSED`, `ANUS_EXPOSED`, `FEET_EXPOSED`, `BELLY_COVERED`,
+  `FEET_COVERED`, `ARMPITS_COVERED`, `ARMPITS_EXPOSED`, `FACE_MALE`,
+  `BELLY_EXPOSED`, `MALE_GENITALIA_EXPOSED`, `ANUS_COVERED`,
+  `FEMALE_BREAST_COVERED` e `BUTTOCKS_COVERED`.
+
+  Erros comuns: `400 invalid_request`, `413 image_too_large`, `415
+  unsupported_media_type`, `422 invalid_image` e `503 service_overloaded`.
