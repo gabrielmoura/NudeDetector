@@ -17,9 +17,22 @@ Estimar a probabilidade de pornografia (`pornography_score = P(porn)`) com base 
 
 ## Execução
 ```bash
-ONNXRUNTIME_SHARED_LIBRARY_PATH=/path/to/libonnxruntime.so.1.22.0 \
-CLASSIFIER_MODEL_PATH=./models/model.onnx CLASSIFIER_METADATA_PATH=./models/model.json \
-INFERENCE_CONCURRENCY=4 MAX_PENDING_INFERENCES=100 ./nude-detector
+make model onnxruntime build
+./bin/nude-detector serve
+```
+
+O CLI localiza automaticamente a Runtime ONNX em `.cache/onnxruntime` e no
+diretório do executável. Para usar outro arquivo, informe
+`--runtime-library /caminho/libonnxruntime.so` ou
+`ONNXRUNTIME_SHARED_LIBRARY_PATH`. A porta padrão é `:8080`; altere com
+`--addr :9090` ou `HTTP_ADDR=:9090`.
+
+O startup emite logs JSON com `version`, `commit`, `build_time`, modelo,
+labels, Runtime ONNX, detector e endereço/porta efetivamente vinculados.
+Também é possível consultar os metadados de build com:
+
+```bash
+./bin/nude-detector version
 ```
 
 Use ONNX Runtime 1.22.0 or a compatible newer release: the bundled model uses

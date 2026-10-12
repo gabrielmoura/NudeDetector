@@ -23,7 +23,9 @@ ONNXRUNTIME_LIBRARY := $(ONNXRUNTIME_DIR)/lib/libonnxruntime.so.$(ONNXRUNTIME_VE
 
 IMAGE ?= nude-detector
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-BUILD_FLAGS := -trimpath -buildvcs=false
+COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+BUILD_FLAGS := -trimpath -buildvcs=false -ldflags "-X github.com/gabrielmoura/NudeDetector/internal/buildinfo.Version=$(VERSION) -X github.com/gabrielmoura/NudeDetector/internal/buildinfo.Commit=$(COMMIT) -X github.com/gabrielmoura/NudeDetector/internal/buildinfo.BuildTime=$(BUILD_TIME)"
 
 .DEFAULT_GOAL := help
 
@@ -103,6 +105,9 @@ run: model onnxruntime build ## Inicia a API local com modelo e Runtime compatí
 docker: ## Cria a imagem Docker de produção
 	docker build \
 		--build-arg ONNXRUNTIME_VERSION=$(ONNXRUNTIME_VERSION) \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT=$(COMMIT) \
+		--build-arg BUILD_TIME=$(BUILD_TIME) \
 		--build-arg MODEL_URL=$(MODEL_URL) \
 		--build-arg MODEL_SHA256=$(MODEL_SHA256) \
 		--build-arg DETECTOR_MODEL_URL=$(DETECTOR_MODEL_URL) \

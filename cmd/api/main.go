@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gabrielmoura/NudeDetector/internal/api"
+	"github.com/gabrielmoura/NudeDetector/internal/buildinfo"
 	"github.com/gabrielmoura/NudeDetector/internal/cache"
 	"github.com/gabrielmoura/NudeDetector/internal/config"
 	"github.com/gabrielmoura/NudeDetector/internal/detector"
@@ -22,60 +25,76 @@ import (
 	"github.com/gabrielmoura/NudeDetector/internal/modelstore"
 	"github.com/gabrielmoura/NudeDetector/internal/moderation"
 	"github.com/gabrielmoura/NudeDetector/internal/observability"
+	"github.com/gabrielmoura/NudeDetector/internal/runtimepath"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	ort "github.com/yalue/onnxruntime_go"
 )
 
 type runtime struct {
-	handler  *api.Handler
-	engine   inference.Engine
-	worker   *inference.Worker
-	detector *detector.Detector
-	httpAddr string
+	handler        *api.Handler
+	engine         inference.Engine
+	worker         *inference.Worker
+	detector       *detector.Detector
+	log            *slog.Logger
+	metadata       *model.ModelMetadata
+	modelPath      string
+	runtimeLibrary string
+	httpAddr       string
+}
+
+type runtimeOptions struct {
+	HTTPAddr       string
+	RuntimeLibrary string
 }
 
 func main() {
 	root := newRootCommand()
 	if err := root.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		observability.Setup().Error("command_failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 }
 
 func newRootCommand() *cobra.Command {
+	var options runtimeOptions
 	root := &cobra.Command{
-		Use:   "nude-detector",
-		Short: "Classifies pornography probability from images",
+		Use:           "nude-detector",
+		Short:         "Classifies pornography probability from images",
+		Version:       buildinfo.String(),
+		SilenceUsage:  true,
+		SilenceErrors: true,
 		RunE: func(command *cobra.Command, arguments []string) error {
-			runtime, err := newRuntime(true)
+			runtime, err := newRuntime(options, true)
 			if err != nil {
 				return err
 			}
 			defer runtime.Close()
-			return serve(runtime.handler.Router(), runtime.httpAddr)
+			return serve(runtime)
 		},
 	}
-	root.AddCommand(newServeCommand(), newClassifyCommand(), newExportCommand())
+	root.PersistentFlags().StringVar(&options.HTTPAddr, "addr", "", "HTTP listen address (overrides HTTP_ADDR)")
+	root.PersistentFlags().StringVar(&options.RuntimeLibrary, "runtime-library", "", "path to the ONNX Runtime shared library")
+	root.AddCommand(newServeCommand(&options), newClassifyCommand(&options), newExportCommand(&options), newVersionCommand())
 	return root
 }
 
-func newServeCommand() *cobra.Command {
+func newServeCommand(options *runtimeOptions) *cobra.Command {
 	return &cobra.Command{
 		Use:   "serve",
 		Short: "Starts the HTTP API",
 		RunE: func(command *cobra.Command, arguments []string) error {
-			runtime, err := newRuntime(true)
+			runtime, err := newRuntime(*options, true)
 			if err != nil {
 				return err
 			}
 			defer runtime.Close()
-			return serve(runtime.handler.Router(), runtime.httpAddr)
+			return serve(runtime)
 		},
 	}
 }
 
-func newClassifyCommand() *cobra.Command {
+func newClassifyCommand(options *runtimeOptions) *cobra.Command {
 	var inputPath string
 	command := &cobra.Command{
 		Use:   "classify",
@@ -88,7 +107,7 @@ func newClassifyCommand() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("read input: %w", err)
 			}
-			runtime, err := newRuntime(false)
+			runtime, err := newRuntime(*options, false)
 			if err != nil {
 				return err
 			}
@@ -104,7 +123,7 @@ func newClassifyCommand() *cobra.Command {
 	return command
 }
 
-func newExportCommand() *cobra.Command {
+func newExportCommand(options *runtimeOptions) *cobra.Command {
 	var inputPath, outputPath string
 	var drawBoxes, blur bool
 	var blurRadius float64
@@ -120,7 +139,7 @@ func newExportCommand() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("read input: %w", err)
 			}
-			runtime, err := newRuntime(true)
+			runtime, err := newRuntime(*options, true)
 			if err != nil {
 				return err
 			}
@@ -151,13 +170,50 @@ func newExportCommand() *cobra.Command {
 	return command
 }
 
-func newRuntime(loadDetector bool) (*runtime, error) {
+func newVersionCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Prints build and runtime version information",
+		Run: func(command *cobra.Command, arguments []string) {
+			info := buildinfo.Current()
+			infoJSON, _ := json.Marshal(info)
+			_, _ = command.OutOrStdout().Write(append(infoJSON, '\n'))
+		},
+	}
+}
+
+func newRuntime(options runtimeOptions, loadDetector bool) (*runtime, error) {
 	log := observability.Setup()
 	cfg, err := config.Load()
 	if err != nil {
 		return nil, err
 	}
-	ort.SetSharedLibraryPath(cfg.ONNXRuntimeLibraryPath)
+	if options.HTTPAddr != "" {
+		cfg.HTTPAddr = options.HTTPAddr
+	}
+	if options.RuntimeLibrary != "" {
+		cfg.ONNXRuntimeLibraryPath = options.RuntimeLibrary
+	}
+	executable, executableErr := os.Executable()
+	if executableErr != nil {
+		executable = ""
+	}
+	workingDirectory, workingDirectoryErr := os.Getwd()
+	if workingDirectoryErr != nil {
+		return nil, fmt.Errorf("resolve working directory: %w", workingDirectoryErr)
+	}
+	runtimeLibrary, err := runtimepath.Resolve(cfg.ONNXRuntimeLibraryPath, executable, workingDirectory)
+	if err != nil {
+		return nil, err
+	}
+	cfg.ONNXRuntimeLibraryPath = runtimeLibrary
+	log.Info("runtime_initializing",
+		slog.String("version", buildinfo.Version),
+		slog.String("commit", buildinfo.Commit),
+		slog.String("build_time", buildinfo.BuildTime),
+		slog.String("onnx_runtime_library", runtimeLibrary),
+	)
+	ort.SetSharedLibraryPath(runtimeLibrary)
 	if err := ort.InitializeEnvironment(); err != nil {
 		return nil, fmt.Errorf("initialize ONNX Runtime: %w", err)
 	}
@@ -218,11 +274,15 @@ func newRuntime(loadDetector bool) (*runtime, error) {
 	observability.ModelInfo.WithLabelValues(metadata.Name, metadata.Version).Set(1)
 	observability.Register(prometheus.DefaultRegisterer)
 	return &runtime{
-		handler:  api.New(cfg, log, metadata, engine, processor, classifier, policy, fetcher, resultCache, worker, bodyDetector),
-		engine:   engine,
-		worker:   worker,
-		detector: bodyDetector,
-		httpAddr: cfg.HTTPAddr,
+		handler:        api.New(cfg, log, metadata, engine, processor, classifier, policy, fetcher, resultCache, worker, bodyDetector),
+		engine:         engine,
+		worker:         worker,
+		detector:       bodyDetector,
+		log:            log,
+		metadata:       metadata,
+		modelPath:      cfg.ClassifierModelPath,
+		runtimeLibrary: runtimeLibrary,
+		httpAddr:       cfg.HTTPAddr,
 	}, nil
 }
 
@@ -264,19 +324,42 @@ func (r *runtime) Close() {
 	_ = ort.DestroyEnvironment()
 }
 
-func serve(handler http.Handler, addr string) error {
-	server := &http.Server{Addr: addr, Handler: handler, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 90 * time.Second}
+func serve(runtime *runtime) error {
+	listener, err := net.Listen("tcp", runtime.httpAddr)
+	if err != nil {
+		return fmt.Errorf("listen on %s: %w", runtime.httpAddr, err)
+	}
+	defer listener.Close()
+	host, port, _ := net.SplitHostPort(listener.Addr().String())
+	runtime.log.Info("server_started",
+		slog.String("version", buildinfo.Version),
+		slog.String("commit", buildinfo.Commit),
+		slog.String("build_time", buildinfo.BuildTime),
+		slog.String("listen_address", listener.Addr().String()),
+		slog.String("host", host),
+		slog.String("port", port),
+		slog.String("model_name", runtime.metadata.Name),
+		slog.String("model_version", runtime.metadata.Version),
+		slog.String("model_path", runtime.modelPath),
+		slog.Any("model_labels", runtime.metadata.Labels),
+		slog.String("onnx_runtime_library", runtime.runtimeLibrary),
+		slog.Bool("detector_enabled", runtime.detector != nil),
+	)
+	server := &http.Server{Addr: runtime.httpAddr, Handler: runtime.handler.Router(), ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 90 * time.Second}
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(signals)
 	go func() {
 		<-signals
-		context, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		shutdownContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		_ = server.Shutdown(context)
+		runtime.log.Info("server_stopping")
+		_ = server.Shutdown(shutdownContext)
 	}()
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
 		return err
 	}
+	runtime.log.Info("server_stopped")
 	return nil
 }
 

@@ -84,7 +84,7 @@ func Load() (*Config, error) {
 		ONNXInterOpThreads:   getEnvInt("ONNX_INTER_OP_THREADS", 0),
 		ONNXRuntimeLibraryPath: getEnv(
 			"ONNXRUNTIME_SHARED_LIBRARY_PATH",
-			"onnxruntime.so",
+			"",
 		),
 
 		CacheEnabled:    getEnvBool("CACHE_ENABLED", true),

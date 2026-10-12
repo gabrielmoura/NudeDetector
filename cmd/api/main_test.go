@@ -67,3 +67,20 @@ func TestWarmupClassifierValidatesShapeAndClassCount(t *testing.T) {
 		t.Fatal("warmupClassifier() error = nil, want class count mismatch")
 	}
 }
+
+func TestVersionCommandWritesJSON(t *testing.T) {
+	t.Parallel()
+
+	root := newRootCommand()
+	var output bytes.Buffer
+	root.SetOut(&output)
+	root.SetErr(&output)
+	root.SetArgs([]string{"version"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("version command: %v", err)
+	}
+	if !bytes.Contains(output.Bytes(), []byte(`"version"`)) ||
+		!bytes.Contains(output.Bytes(), []byte(`"commit"`)) {
+		t.Fatalf("version output = %q, want JSON build fields", output.String())
+	}
+}

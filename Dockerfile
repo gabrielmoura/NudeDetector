@@ -4,6 +4,9 @@ FROM golang:1.26-bookworm AS builder
 WORKDIR /app
 
 ARG ONNXRUNTIME_VERSION=1.22.0
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_TIME=unknown
 ARG MODEL_URL=https://huggingface.co/onnx-community/nsfw-classifier-ONNX/resolve/main/onnx/model.onnx
 ARG MODEL_SHA256=d6e841f61f193d9f435b464748c772b4096edd941c9f12b3a05bcb655fb267eb
 ARG DETECTOR_MODEL_URL=https://raw.githubusercontent.com/notAI-tech/NudeNet/v3/nudenet/320n.onnx
@@ -31,7 +34,9 @@ RUN go mod download
 
 COPY cmd ./cmd
 COPY internal ./internal
-RUN CGO_ENABLED=1 go build -trimpath -buildvcs=false -o /out/nude-detector ./cmd/api
+RUN CGO_ENABLED=1 go build -trimpath -buildvcs=false \
+	-ldflags "-X github.com/gabrielmoura/NudeDetector/internal/buildinfo.Version=${VERSION} -X github.com/gabrielmoura/NudeDetector/internal/buildinfo.Commit=${COMMIT} -X github.com/gabrielmoura/NudeDetector/internal/buildinfo.BuildTime=${BUILD_TIME}" \
+	-o /out/nude-detector ./cmd/api
 
 FROM debian:bookworm-slim
 
