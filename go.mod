@@ -7,7 +7,9 @@ require (
 	github.com/k2-fsa/sherpa-onnx-go v1.13.8
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/cobra v1.9.1
+	github.com/tggo/goSentencePiece v1.1.0
 	github.com/yalue/onnxruntime_go v1.21.0
+	go.yaml.in/yaml/v2 v2.4.2
 	golang.org/x/image v0.31.0
 	golang.org/x/sync v0.17.0
 )
@@ -25,8 +27,7 @@ require (
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
-	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/text v0.29.0 // indirect
-	google.golang.org/protobuf v1.36.8 // indirect
+	google.golang.org/protobuf v1.36.11 // indirect
 )

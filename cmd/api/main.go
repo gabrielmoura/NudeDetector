@@ -30,6 +30,7 @@ import (
 	"github.com/gabrielmoura/NudeDetector/internal/observability"
 	"github.com/gabrielmoura/NudeDetector/internal/ocr"
 	"github.com/gabrielmoura/NudeDetector/internal/runtimepath"
+	"github.com/gabrielmoura/NudeDetector/internal/translation"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	ort "github.com/yalue/onnxruntime_go"
@@ -42,6 +43,7 @@ type runtime struct {
 	detector       *detector.Detector
 	transcriber    asr.Transcriber
 	ocrRecognizer  ocr.Recognizer
+	translator     translation.Translator
 	ortInitialized bool
 	log            *slog.Logger
 	metadata       *model.ModelMetadata
@@ -90,6 +92,7 @@ func newRootCommand() *cobra.Command {
 		newExportCommand(&options),
 		newASRCommand(&options),
 		newOCRCommand(&options),
+		newTranslateCommand(&options),
 		newScanCommand(&options),
 		newVersionCommand(),
 	)
@@ -231,7 +234,7 @@ func newRuntime(options runtimeOptions, loadDetector bool) (*runtime, error) {
 	if err := validateImplementedModels(models); err != nil {
 		return nil, err
 	}
-	needsONNXRuntime := models.Enabled(aimodel.NSFWClassifierID) || models.Enabled(aimodel.NudeNetDetectorID) || models.Enabled("pp-ocrv6-tiny") || models.Enabled("pp-ocrv6-small")
+	needsONNXRuntime := models.Enabled(aimodel.NSFWClassifierID) || models.Enabled(aimodel.NudeNetDetectorID) || models.Enabled("pp-ocrv6-tiny") || models.Enabled("pp-ocrv6-small") || models.Enabled("opus-mt-en-romance") || models.Enabled("opus-mt-romance-en")
 	var runtimeLibrary string
 	ortInitialized := false
 	if needsONNXRuntime {
@@ -372,14 +375,33 @@ func newRuntime(options runtimeOptions, loadDetector bool) (*runtime, error) {
 		}
 		return nil, err
 	}
-	observability.ModelLoaded = metadata != nil || bodyDetector != nil || transcriber != nil || ocrRecognizer != nil
+	translator, err := newTranslator(cfg, models)
+	if err != nil {
+		if ocrRecognizer != nil {
+			_ = ocrRecognizer.Close()
+		}
+		if transcriber != nil {
+			_ = transcriber.Close()
+		}
+		if bodyDetector != nil {
+			_ = bodyDetector.Close()
+		}
+		if engine != nil {
+			_ = engine.Close()
+		}
+		if ortInitialized {
+			_ = ort.DestroyEnvironment()
+		}
+		return nil, err
+	}
+	observability.ModelLoaded = metadata != nil || bodyDetector != nil || transcriber != nil || ocrRecognizer != nil || translator != nil
 	observability.ReadyFlag = true
 	if metadata != nil {
 		observability.ModelInfo.WithLabelValues(metadata.Name, metadata.Version).Set(1)
 	}
 	observability.Register(prometheus.DefaultRegisterer)
 	return &runtime{
-		handler:        api.New(cfg, log, metadata, engine, processor, classifier, policy, fetcher, resultCache, worker, bodyDetector, models, transcriber, ocrRecognizer),
+		handler:        api.New(cfg, log, metadata, engine, processor, classifier, policy, fetcher, resultCache, worker, bodyDetector, models, transcriber, ocrRecognizer, translator),
 		engine:         engine,
 		worker:         worker,
 		detector:       bodyDetector,
@@ -391,6 +413,7 @@ func newRuntime(options runtimeOptions, loadDetector bool) (*runtime, error) {
 		models:         models,
 		transcriber:    transcriber,
 		ocrRecognizer:  ocrRecognizer,
+		translator:     translator,
 		ortInitialized: ortInitialized,
 	}, nil
 }
@@ -398,12 +421,41 @@ func newRuntime(options runtimeOptions, loadDetector bool) (*runtime, error) {
 func validateImplementedModels(models *aimodel.Registry) error {
 	for _, id := range models.EnabledIDs() {
 		switch id {
-		case aimodel.NSFWClassifierID, aimodel.NudeNetDetectorID, "whisper-tiny", "whisper-base", "whisper-small", "pp-ocrv6-tiny", "pp-ocrv6-small":
+		case aimodel.NSFWClassifierID, aimodel.NudeNetDetectorID, "whisper-tiny", "whisper-base", "whisper-small", "pp-ocrv6-tiny", "pp-ocrv6-small", "opus-mt-en-romance", "opus-mt-romance-en":
 		default:
 			return fmt.Errorf("model %q is registered but its service is not implemented yet", id)
 		}
 	}
 	return nil
+}
+
+func newTranslator(cfg *config.Config, models *aimodel.Registry) (translation.Translator, error) {
+	selected := ""
+	for _, id := range []string{"opus-mt-en-romance", "opus-mt-romance-en"} {
+		if models.Enabled(id) {
+			if selected != "" {
+				return nil, fmt.Errorf("only one OPUS-MT model can be enabled per process")
+			}
+			selected = id
+		}
+	}
+	if selected == "" {
+		return nil, nil
+	}
+	sources, targets := []string{"en"}, []string{"pt", "es", "fr", "it"}
+	if selected == "opus-mt-romance-en" {
+		sources, targets = []string{"pt", "es", "fr", "it"}, []string{"en"}
+	}
+	dir := filepath.Join(cfg.TranslationModelsDir, selected)
+	translator, err := translation.NewOPUS(translation.OPUSConfig{ModelID: selected, EncoderPath: filepath.Join(dir, "encoder.onnx"), DecoderPath: filepath.Join(dir, "decoder.onnx"), TokenizerPath: filepath.Join(dir, "tokenizer.json"), VocabularyPath: filepath.Join(dir, "vocab.json"), SupportedSources: sources, SupportedTargets: targets, MaxInputTokens: cfg.TranslationMaxInputTokens, MaxOutputTokens: cfg.TranslationMaxOutputTokens})
+	if err != nil {
+		return nil, fmt.Errorf("initialize %s: %w", selected, err)
+	}
+	if err := models.MarkLoaded(selected); err != nil {
+		_ = translator.Close()
+		return nil, err
+	}
+	return translator, nil
 }
 
 func newOCRRecognizer(cfg *config.Config, models *aimodel.Registry) (ocr.Recognizer, error) {
@@ -510,6 +562,9 @@ func (r *runtime) Close() {
 	}
 	if r.ocrRecognizer != nil {
 		_ = r.ocrRecognizer.Close()
+	}
+	if r.translator != nil {
+		_ = r.translator.Close()
 	}
 	if r.detector != nil {
 		_ = r.detector.Close()
