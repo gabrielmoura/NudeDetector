@@ -3,9 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 
 	"github.com/gabrielmoura/NudeDetector/internal/aimodel"
 	"github.com/gabrielmoura/NudeDetector/internal/config"
+	"github.com/gabrielmoura/NudeDetector/internal/modelstore"
 	"github.com/spf13/cobra"
 )
 
@@ -44,8 +46,51 @@ func newModelsCommand() *cobra.Command {
 			}
 			return json.NewEncoder(command.OutOrStdout()).Encode(model)
 		}},
+		&cobra.Command{Use: "install MODEL", Short: "Downloads a pinned model release with SHA-256 verification", Args: cobra.ExactArgs(1), RunE: func(command *cobra.Command, arguments []string) error {
+			cfg, err := config.Load()
+			if err != nil {
+				return err
+			}
+			artifacts, err := installArtifacts(arguments[0], cfg)
+			if err != nil {
+				return err
+			}
+			if err := modelstore.Install(command.Context(), artifacts); err != nil {
+				return fmt.Errorf("install %s: %w", arguments[0], err)
+			}
+			_, err = fmt.Fprintln(command.OutOrStdout(), arguments[0]+" installed")
+			return err
+		}},
 	)
 	return command
+}
+
+func installArtifacts(modelID string, cfg *config.Config) ([]modelstore.Artifact, error) {
+	const maxArtifactBytes = 200 * 1024 * 1024
+	var revision, repository string
+	var files [][2]string
+	switch modelID {
+	case "opus-mt-en-romance":
+		repository, revision = "Xenova/opus-mt-en-ROMANCE", "9d2ba69ac80c8e8453c3d9a1e2323a0e7b8ca3cd"
+		files = [][2]string{{"onnx/encoder_model_int8.onnx", "f26bc5cd040987159e82a7e65d047de4a302e44cc9676ed240a44d5866b8cbe5"}, {"onnx/decoder_model_merged_int8.onnx", "dc25e58bd664fb9a23c6e962cbb5fc078f68de59654d9dff41573c7dcd1453e9"}, {"tokenizer.json", "31cabbd7e3857f21bcde266b0e84585ef3282133acce42d3765e8f31cb5f4040"}, {"vocab.json", "d9c3b6b01d3a9c9403befa60fd17e4a50dc4929698e3d6b9c2e7f066a9d1f041"}}
+	case "opus-mt-romance-en":
+		repository, revision = "Xenova/opus-mt-ROMANCE-en", "f60feaabe8bb435a5871e7702b25f53a01e770f8"
+		files = [][2]string{{"onnx/encoder_model_int8.onnx", "df97d2f70156a0e3b993c75877e7710831e3f9fc30e6f26f7cad25e0466806c6"}, {"onnx/decoder_model_merged_int8.onnx", "61729b29859d821786fa85ddbb44c7d04bcf7deb6d14e9b614bd6c5f6aedb31f"}, {"tokenizer.json", "34979cc78f4dfa92f7b39ad8f0d4068dc7d1be61940f09db5ac77818e013bd99"}, {"vocab.json", "32c8eeec099b448425a7da4e09ec10acbe424a733780c9bcec2062846f03e706"}}
+	default:
+		return nil, fmt.Errorf("model %q does not yet have an install manifest", modelID)
+	}
+	dir := filepath.Join(cfg.TranslationModelsDir, modelID)
+	artifacts := make([]modelstore.Artifact, 0, len(files))
+	for _, file := range files {
+		target := file[0]
+		if target == "onnx/encoder_model_int8.onnx" {
+			target = "encoder.onnx"
+		} else if target == "onnx/decoder_model_merged_int8.onnx" {
+			target = "decoder.onnx"
+		}
+		artifacts = append(artifacts, modelstore.Artifact{Path: filepath.Join(dir, target), URL: "https://huggingface.co/" + repository + "/resolve/" + revision + "/" + file[0], SHA256: file[1], MaxBytes: maxArtifactBytes})
+	}
+	return artifacts, nil
 }
 
 func configuredModelRegistry() (*aimodel.Registry, error) {

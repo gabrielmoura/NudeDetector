@@ -115,6 +115,15 @@ models/translation/opus-mt-en-romance/tokenizer.json
 models/translation/opus-mt-en-romance/vocab.json
 ```
 
+O instalador baixa somente quando solicitado, com limites, URLs HTTPS, SHA-256
+e renomeação atômica. Ele não é acionado durante uma requisição ou no startup:
+
+```bash
+./bin/nude-detector models install opus-mt-en-romance
+./bin/nude-detector models verify opus-mt-en-romance
+./bin/nude-detector models install opus-mt-romance-en
+```
+
 Use a revisão fixa `9d2ba69ac80c8e8453c3d9a1e2323a0e7b8ca3cd` do
 [Xenova/opus-mt-en-ROMANCE](https://huggingface.co/Xenova/opus-mt-en-ROMANCE)
 para inglês para português, espanhol, francês ou italiano. Para a direção

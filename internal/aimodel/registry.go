@@ -224,12 +224,12 @@ func defaultDescriptors() map[string]Descriptor {
 			Languages: []string{"model dependent"}, EstimatedMemoryMB: 300, License: "PaddlePaddle model license",
 		},
 		"opus-mt-en-romance": {
-			ID: "opus-mt-en-romance", Name: "OPUS-MT English to Romance", Version: "pending pinned revision",
+			ID: "opus-mt-en-romance", Name: "OPUS-MT English to Romance", Version: "9d2ba69ac80c8e8453c3d9a1e2323a0e7b8ca3cd",
 			Capabilities: []Capability{CapabilityTranslation}, Engine: "onnxruntime", Format: "onnx",
 			Languages: []string{"en", "pt", "es", "fr", "it"}, EstimatedMemoryMB: 600, License: "Apache-2.0",
 		},
 		"opus-mt-romance-en": {
-			ID: "opus-mt-romance-en", Name: "OPUS-MT Romance to English", Version: "pending pinned revision",
+			ID: "opus-mt-romance-en", Name: "OPUS-MT Romance to English", Version: "f60feaabe8bb435a5871e7702b25f53a01e770f8",
 			Capabilities: []Capability{CapabilityTranslation}, Engine: "onnxruntime", Format: "onnx",
 			Languages: []string{"en", "pt", "es", "fr", "it"}, EstimatedMemoryMB: 600, License: "Apache-2.0",
 		},
