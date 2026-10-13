@@ -42,14 +42,15 @@ ele não fizer parte da instância.
 1. `internal/aimodel`: catálogo, capacidades, estados e validação da seleção.
 2. Composição do runtime: inicializar somente engines e sessões dos modelos
    selecionados; expor `GET /v1/models`.
-3. ASR: adapter Sherpa-ONNX isolado do wrapper ONNX Runtime existente,
-   normalização com FFmpeg invocado sem shell e modelos Whisper instalados por
-   artefatos fixados.
+3. ASR: adapter Sherpa-ONNX isolado do wrapper ONNX Runtime existente e
+   modelos Whisper instalados por artefatos fixados. WAV PCM/float já é
+   validado; FFmpeg seguro para os codecs adicionais permanece pendente.
 4. OCR: detector e reconhecedor PP-OCRv6 como um perfil composto, incluindo
    dicionário e pós-processamento DB/CTC validado contra os contratos ONNX.
-5. Tradução: prova de conceito real de tokenizer SentencePiece e decoder
-   autoregressivo OPUS-MT antes de qualquer endpoint de produção; M2M100 só
-   entra depois de comprovar tokenizer, tokens de idioma e cache KV.
+5. Tradução: OPUS-MT agora usa o `tokenizer.json` oficial, encoder ONNX e
+   decoder autoregressivo real. Os smoke tests opt-in validam `Hello world` →
+   `Olá mundo` e a direção inversa. M2M100 só entra depois de comprovar
+   tokenizer, tokens de idioma e cache KV.
 
 ## Compatibilidade e riscos
 

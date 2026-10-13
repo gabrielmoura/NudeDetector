@@ -77,6 +77,59 @@ Para a API, inicie com `--models whisper-tiny` (ou defina
 modelo expor segmentos confiáveis; timestamps de token retornados pelo Sherpa
 ficam em `metadata.token_timestamps_seconds` quando solicitados.
 
+Neste incremento o decodificador embutido aceita WAV PCM/float. MP3, OGG,
+M4A/AAC e FLAC exigirão a etapa complementar baseada em FFmpeg; não são
+aceitos silenciosamente como WAV.
+
+### OCR local (PP-OCRv6)
+
+OCR usa as duas redes ONNX do perfil PP-OCRv6 e funciona com JPEG, PNG e WebP.
+Instale os artefatos de uma mesma revisão sob `OCR_MODELS_DIR` (padrão
+`./models/ocr`):
+
+```text
+models/ocr/pp-ocrv6-tiny/det.onnx
+models/ocr/pp-ocrv6-tiny/rec.onnx
+models/ocr/pp-ocrv6-tiny/rec.yml
+```
+
+```bash
+./bin/nude-detector ocr recognize imagem.png --model pp-ocrv6-tiny --boxes
+./bin/nude-detector serve --models pp-ocrv6-tiny
+curl -sS -X POST http://localhost:8080/v1/ocr -F image=@imagem.png -F return_boxes=true
+```
+
+As coordenadas retornadas são absolutas, em pixels da imagem de entrada.
+
+### Tradução local (OPUS-MT)
+
+OPUS-MT usa encoder e decoder ONNX em CPU, tokenizer Hugging Face e geração
+autoregressiva local. Não há chamada a serviço externo durante a inferência.
+Cada perfil instalado precisa destes arquivos, sob `TRANSLATION_MODELS_DIR`
+(padrão `./models/translation`):
+
+```text
+models/translation/opus-mt-en-romance/encoder.onnx
+models/translation/opus-mt-en-romance/decoder.onnx
+models/translation/opus-mt-en-romance/tokenizer.json
+models/translation/opus-mt-en-romance/vocab.json
+```
+
+Use a revisão fixa `9d2ba69ac80c8e8453c3d9a1e2323a0e7b8ca3cd` do
+[Xenova/opus-mt-en-ROMANCE](https://huggingface.co/Xenova/opus-mt-en-ROMANCE)
+para inglês para português, espanhol, francês ou italiano. Para a direção
+inversa, use a revisão `f60feaabe8bb435a5871e7702b25f53a01e770f8` de
+[Xenova/opus-mt-ROMANCE-en](https://huggingface.co/Xenova/opus-mt-ROMANCE-en).
+
+```bash
+./bin/nude-detector translate 'Hello world' --from en --to pt
+./bin/nude-detector translate --file texto.txt --from pt --to en --model opus-mt-romance-en --format json
+./bin/nude-detector serve --models opus-mt-en-romance
+curl -sS -X POST http://localhost:8080/v1/translations \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"Hello world","source_language":"en","target_language":"pt"}'
+```
+
 `classify` lê uma imagem local e escreve JSON no stdout. `export` aceita imagem,
 GIF ou vídeo, usa o frame inicial por padrão, permite selecionar outro frame
 com `--frame-time-ms`, desenha boxes por padrão e grava sempre JPEG. Flags de
@@ -183,8 +236,10 @@ As variáveis principais são: `HTTP_ADDR`, `CLASSIFIER_MODEL_PATH`,
 `ONNX_INTER_OP_THREADS`, `CACHE_ENABLED`, `CACHE_MAX_ENTRIES`, `CACHE_TTL`,
 `DETECTOR_ENABLED`, `DETECTOR_MODEL_PATH`, `DETECTOR_MODEL_URL`,
 `DETECTOR_MODEL_SHA256`, `DETECTOR_SCORE_MINIMUM`, `DETECTOR_IOU_THRESHOLD`,
-`ENABLED_MODELS`, `MAX_AUDIO_BYTES`, `ASR_MODELS_DIR`, `ASR_THREADS` e
-`PPROF_ENABLED`. Valores de threshold são números entre
+`ENABLED_MODELS`, `MAX_AUDIO_BYTES`, `ASR_MODELS_DIR`, `ASR_THREADS`,
+`OCR_MODELS_DIR`, `OCR_MAX_SIDE`, `TRANSLATION_MODELS_DIR`,
+`TRANSLATION_MAX_INPUT_TOKENS`, `TRANSLATION_MAX_OUTPUT_TOKENS`,
+`TRANSLATION_MAX_CHARACTERS` e `PPROF_ENABLED`. Valores de threshold são números entre
 `0` e `1`.
 
 `ENABLED_MODELS` aceita IDs separados por vírgula e controla exclusivamente o
