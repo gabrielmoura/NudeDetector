@@ -199,7 +199,7 @@ func defaultDescriptors() map[string]Descriptor {
 			Format: "onnx", Languages: []string{}, EstimatedMemoryMB: 80, License: "MIT",
 		},
 		"whisper-tiny": {
-			ID: "whisper-tiny", Name: "Whisper Tiny", Version: "pending pinned revision",
+			ID: "whisper-tiny", Name: "Whisper Tiny", Version: "65176e2deb88badc814a94058666cadccc29b61c",
 			Capabilities: []Capability{CapabilityASR}, Engine: "sherpa-onnx", Format: "onnx",
 			Quantization: "int8 when installed", Languages: []string{"multilingual"}, EstimatedMemoryMB: 150, License: "MIT",
 		},
@@ -214,7 +214,7 @@ func defaultDescriptors() map[string]Descriptor {
 			Quantization: "int8 when installed", Languages: []string{"multilingual"}, EstimatedMemoryMB: 700, License: "MIT",
 		},
 		"pp-ocrv6-tiny": {
-			ID: "pp-ocrv6-tiny", Name: "PP-OCRv6 Tiny", Version: "pending pinned revision",
+			ID: "pp-ocrv6-tiny", Name: "PP-OCRv6 Tiny", Version: "det:2ba1506c0380b8f0b03dd142459aac66d4421f6c rec:2612ab37152ae0a677521bae4e1e3d4fb4cf7c30",
 			Capabilities: []Capability{CapabilityOCR}, Engine: "onnxruntime", Format: "onnx",
 			Languages: []string{"model dependent"}, EstimatedMemoryMB: 160, License: "PaddlePaddle model license",
 		},

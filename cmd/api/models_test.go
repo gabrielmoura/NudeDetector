@@ -20,3 +20,21 @@ func TestInstallArtifactsUsesPinnedOPUSManifest(t *testing.T) {
 		}
 	}
 }
+
+func TestInstallArtifactsUsesPinnedWhisperAndOCRManifests(t *testing.T) {
+	cfg := &config.Config{ASRModelsDir: t.TempDir(), OCRModelsDir: t.TempDir()}
+	for _, modelID := range []string{"whisper-tiny", "pp-ocrv6-tiny"} {
+		artifacts, err := installArtifacts(modelID, cfg)
+		if err != nil {
+			t.Fatalf("installArtifacts(%q): %v", modelID, err)
+		}
+		if len(artifacts) != 3 {
+			t.Fatalf("installArtifacts(%q) count = %d, want 3", modelID, len(artifacts))
+		}
+		for _, artifact := range artifacts {
+			if artifact.SHA256 == "" || artifact.MaxBytes < 1 {
+				t.Fatalf("unsafe artifact for %s: %#v", modelID, artifact)
+			}
+		}
+	}
+}

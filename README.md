@@ -63,6 +63,12 @@ models/asr/whisper-tiny/tiny-tokens.txt
 
 Os artefatos e a revisão são publicados pelo
 [repositório oficial Sherpa Whisper Tiny](https://huggingface.co/csukuangfj/sherpa-onnx-whisper-tiny).
+O perfil Tiny pode ser instalado com verificação de integridade:
+
+```bash
+./bin/nude-detector models install whisper-tiny
+./bin/nude-detector models verify whisper-tiny
+```
 Após a instalação, o primeiro caminho efetivo é WAV PCM ou float:
 
 ```bash
@@ -102,6 +108,12 @@ curl -sS -X POST http://localhost:8080/v1/ocr -F image=@imagem.png -F return_box
 ```
 
 As coordenadas retornadas são absolutas, em pixels da imagem de entrada.
+O perfil Tiny também possui instalação explícita e verificável:
+
+```bash
+./bin/nude-detector models install pp-ocrv6-tiny
+./bin/nude-detector models verify pp-ocrv6-tiny
+```
 
 ### Tradução local (OPUS-MT)
 
