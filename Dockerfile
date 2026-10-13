@@ -60,11 +60,13 @@ RUN apt-get update \
 
 COPY --from=builder /out/nude-detector /app/nude-detector
 COPY --from=builder /out/lib /app/lib
+COPY --from=builder /go/pkg/mod/github.com/k2-fsa/sherpa-onnx-go-linux@v1.13.8/lib/x86_64-unknown-linux-gnu /app/lib/sherpa
 COPY --from=builder /out/model.onnx /app/models/model.onnx
 COPY --from=builder /out/320n.onnx /app/models/320n.onnx
 COPY models/model.json /app/models/model.json
 
-ENV ONNXRUNTIME_SHARED_LIBRARY_PATH=/app/lib/libonnxruntime.so.1.22.0
+ENV ONNXRUNTIME_SHARED_LIBRARY_PATH=/app/lib/libonnxruntime.so.1.22.0 \
+    LD_LIBRARY_PATH=/app/lib/sherpa
 
 USER 1000:1000
 EXPOSE 8080

@@ -49,6 +49,34 @@ Todos os comandos aceitam as flags globais `--addr` e `--runtime-library`.
 ./bin/nude-detector version
 ```
 
+### ASR local (Whisper)
+
+ASR usa Sherpa-ONNX em CPU e não baixa modelos ao atender uma requisição. A
+instalação deve conter os artefatos INT8 de uma revisão conhecida sob
+`ASR_MODELS_DIR` (padrão `./models/asr`), por exemplo para Whisper Tiny:
+
+```text
+models/asr/whisper-tiny/tiny-encoder.int8.onnx
+models/asr/whisper-tiny/tiny-decoder.int8.onnx
+models/asr/whisper-tiny/tiny-tokens.txt
+```
+
+Os artefatos e a revisão são publicados pelo
+[repositório oficial Sherpa Whisper Tiny](https://huggingface.co/csukuangfj/sherpa-onnx-whisper-tiny).
+Após a instalação, o primeiro caminho efetivo é WAV PCM ou float:
+
+```bash
+./bin/nude-detector asr transcribe audio.wav --model whisper-tiny --language pt
+./bin/nude-detector asr transcribe audio.wav --model whisper-tiny --format json --timestamps
+curl -sS -X POST http://localhost:8080/v1/audio/transcriptions \
+  -F file=@audio.wav -F language=pt -F timestamps=true
+```
+
+Para a API, inicie com `--models whisper-tiny` (ou defina
+`ENABLED_MODELS=whisper-tiny`). A resposta mantém `segments` vazio até o
+modelo expor segmentos confiáveis; timestamps de token retornados pelo Sherpa
+ficam em `metadata.token_timestamps_seconds` quando solicitados.
+
 `classify` lê uma imagem local e escreve JSON no stdout. `export` aceita imagem,
 GIF ou vídeo, usa o frame inicial por padrão, permite selecionar outro frame
 com `--frame-time-ms`, desenha boxes por padrão e grava sempre JPEG. Flags de
@@ -155,7 +183,8 @@ As variáveis principais são: `HTTP_ADDR`, `CLASSIFIER_MODEL_PATH`,
 `ONNX_INTER_OP_THREADS`, `CACHE_ENABLED`, `CACHE_MAX_ENTRIES`, `CACHE_TTL`,
 `DETECTOR_ENABLED`, `DETECTOR_MODEL_PATH`, `DETECTOR_MODEL_URL`,
 `DETECTOR_MODEL_SHA256`, `DETECTOR_SCORE_MINIMUM`, `DETECTOR_IOU_THRESHOLD`,
-`ENABLED_MODELS` e `PPROF_ENABLED`. Valores de threshold são números entre
+`ENABLED_MODELS`, `MAX_AUDIO_BYTES`, `ASR_MODELS_DIR`, `ASR_THREADS` e
+`PPROF_ENABLED`. Valores de threshold são números entre
 `0` e `1`.
 
 `ENABLED_MODELS` aceita IDs separados por vírgula e controla exclusivamente o

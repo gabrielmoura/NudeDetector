@@ -16,6 +16,7 @@ import (
 
 	"github.com/gabrielmoura/NudeDetector/internal/aimodel"
 	"github.com/gabrielmoura/NudeDetector/internal/api"
+	"github.com/gabrielmoura/NudeDetector/internal/asr"
 	"github.com/gabrielmoura/NudeDetector/internal/buildinfo"
 	"github.com/gabrielmoura/NudeDetector/internal/cache"
 	"github.com/gabrielmoura/NudeDetector/internal/config"
@@ -38,6 +39,8 @@ type runtime struct {
 	engine         inference.Engine
 	worker         *inference.Worker
 	detector       *detector.Detector
+	transcriber    asr.Transcriber
+	ortInitialized bool
 	log            *slog.Logger
 	metadata       *model.ModelMetadata
 	modelPath      string
@@ -83,6 +86,7 @@ func newRootCommand() *cobra.Command {
 		newServeCommand(&options),
 		newClassifyCommand(&options),
 		newExportCommand(&options),
+		newASRCommand(&options),
 		newScanCommand(&options),
 		newVersionCommand(),
 	)
@@ -224,28 +228,34 @@ func newRuntime(options runtimeOptions, loadDetector bool) (*runtime, error) {
 	if err := validateImplementedModels(models); err != nil {
 		return nil, err
 	}
-	executable, executableErr := os.Executable()
-	if executableErr != nil {
-		executable = ""
-	}
-	workingDirectory, workingDirectoryErr := os.Getwd()
-	if workingDirectoryErr != nil {
-		return nil, fmt.Errorf("resolve working directory: %w", workingDirectoryErr)
-	}
-	runtimeLibrary, err := runtimepath.Resolve(cfg.ONNXRuntimeLibraryPath, executable, workingDirectory)
-	if err != nil {
-		return nil, err
-	}
-	cfg.ONNXRuntimeLibraryPath = runtimeLibrary
-	log.Info("runtime_initializing",
-		slog.String("version", buildinfo.Version),
-		slog.String("commit", buildinfo.Commit),
-		slog.String("build_time", buildinfo.BuildTime),
-		slog.String("onnx_runtime_library", runtimeLibrary),
-	)
-	ort.SetSharedLibraryPath(runtimeLibrary)
-	if err := ort.InitializeEnvironment(); err != nil {
-		return nil, fmt.Errorf("initialize ONNX Runtime: %w", err)
+	needsONNXRuntime := models.Enabled(aimodel.NSFWClassifierID) || models.Enabled(aimodel.NudeNetDetectorID)
+	var runtimeLibrary string
+	ortInitialized := false
+	if needsONNXRuntime {
+		executable, executableErr := os.Executable()
+		if executableErr != nil {
+			executable = ""
+		}
+		workingDirectory, workingDirectoryErr := os.Getwd()
+		if workingDirectoryErr != nil {
+			return nil, fmt.Errorf("resolve working directory: %w", workingDirectoryErr)
+		}
+		runtimeLibrary, err = runtimepath.Resolve(cfg.ONNXRuntimeLibraryPath, executable, workingDirectory)
+		if err != nil {
+			return nil, err
+		}
+		cfg.ONNXRuntimeLibraryPath = runtimeLibrary
+		log.Info("runtime_initializing",
+			slog.String("version", buildinfo.Version),
+			slog.String("commit", buildinfo.Commit),
+			slog.String("build_time", buildinfo.BuildTime),
+			slog.String("onnx_runtime_library", runtimeLibrary),
+		)
+		ort.SetSharedLibraryPath(runtimeLibrary)
+		if err := ort.InitializeEnvironment(); err != nil {
+			return nil, fmt.Errorf("initialize ONNX Runtime: %w", err)
+		}
+		ortInitialized = true
 	}
 	var metadata *model.ModelMetadata
 	var engine inference.Engine
@@ -330,14 +340,27 @@ func newRuntime(options runtimeOptions, loadDetector bool) (*runtime, error) {
 			return nil, err
 		}
 	}
-	observability.ModelLoaded = metadata != nil || bodyDetector != nil
+	transcriber, err := newTranscriber(cfg, models)
+	if err != nil {
+		if bodyDetector != nil {
+			_ = bodyDetector.Close()
+		}
+		if engine != nil {
+			_ = engine.Close()
+		}
+		if ortInitialized {
+			_ = ort.DestroyEnvironment()
+		}
+		return nil, err
+	}
+	observability.ModelLoaded = metadata != nil || bodyDetector != nil || transcriber != nil
 	observability.ReadyFlag = true
 	if metadata != nil {
 		observability.ModelInfo.WithLabelValues(metadata.Name, metadata.Version).Set(1)
 	}
 	observability.Register(prometheus.DefaultRegisterer)
 	return &runtime{
-		handler:        api.New(cfg, log, metadata, engine, processor, classifier, policy, fetcher, resultCache, worker, bodyDetector, models),
+		handler:        api.New(cfg, log, metadata, engine, processor, classifier, policy, fetcher, resultCache, worker, bodyDetector, models, transcriber),
 		engine:         engine,
 		worker:         worker,
 		detector:       bodyDetector,
@@ -347,18 +370,54 @@ func newRuntime(options runtimeOptions, loadDetector bool) (*runtime, error) {
 		runtimeLibrary: runtimeLibrary,
 		httpAddr:       cfg.HTTPAddr,
 		models:         models,
+		transcriber:    transcriber,
+		ortInitialized: ortInitialized,
 	}, nil
 }
 
 func validateImplementedModels(models *aimodel.Registry) error {
 	for _, id := range models.EnabledIDs() {
 		switch id {
-		case aimodel.NSFWClassifierID, aimodel.NudeNetDetectorID:
+		case aimodel.NSFWClassifierID, aimodel.NudeNetDetectorID, "whisper-tiny", "whisper-base", "whisper-small":
 		default:
 			return fmt.Errorf("model %q is registered but its service is not implemented yet", id)
 		}
 	}
 	return nil
+}
+
+func newTranscriber(cfg *config.Config, models *aimodel.Registry) (asr.Transcriber, error) {
+	whisperModels := []string{"whisper-tiny", "whisper-base", "whisper-small"}
+	selected := ""
+	for _, id := range whisperModels {
+		if !models.Enabled(id) {
+			continue
+		}
+		if selected != "" {
+			return nil, fmt.Errorf("only one Whisper model can be enabled per process")
+		}
+		selected = id
+	}
+	if selected == "" {
+		return nil, nil
+	}
+	modelDir := filepath.Join(cfg.ASRModelsDir, selected)
+	filePrefix := strings.TrimPrefix(selected, "whisper-")
+	transcriber, err := asr.NewWhisper(asr.WhisperConfig{
+		ModelID:     selected,
+		EncoderPath: filepath.Join(modelDir, filePrefix+"-encoder.int8.onnx"),
+		DecoderPath: filepath.Join(modelDir, filePrefix+"-decoder.int8.onnx"),
+		TokensPath:  filepath.Join(modelDir, filePrefix+"-tokens.txt"),
+		Threads:     cfg.ASRThreads,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("initialize %s: %w", selected, err)
+	}
+	if err := models.MarkLoaded(selected); err != nil {
+		_ = transcriber.Close()
+		return nil, err
+	}
+	return transcriber, nil
 }
 
 func containsModel(models []string, wanted string) bool {
@@ -401,13 +460,18 @@ func (r *runtime) Close() {
 	if r.worker != nil {
 		r.worker.Close()
 	}
+	if r.transcriber != nil {
+		_ = r.transcriber.Close()
+	}
 	if r.detector != nil {
 		_ = r.detector.Close()
 	}
 	if r.engine != nil {
 		_ = r.engine.Close()
 	}
-	_ = ort.DestroyEnvironment()
+	if r.ortInitialized {
+		_ = ort.DestroyEnvironment()
+	}
 }
 
 func serve(runtime *runtime) error {

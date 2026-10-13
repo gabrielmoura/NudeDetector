@@ -26,6 +26,12 @@ type Config struct {
 	MaxImagePixels int64
 	MaxWidth       int
 	MaxHeight      int
+	MaxAudioBytes  int64
+
+	// ASR models are installed manually below ASRModelsDir. They are never
+	// downloaded while serving inference requests.
+	ASRModelsDir string
+	ASRThreads   int
 
 	// Download
 	DownloadTimeout       int64 // ms
@@ -79,6 +85,9 @@ func Load() (*Config, error) {
 		MaxImagePixels: getEnvInt64("MAX_IMAGE_PIXELS", 50_000_000),
 		MaxWidth:       getEnvInt("MAX_WIDTH", 8192),
 		MaxHeight:      getEnvInt("MAX_HEIGHT", 8192),
+		MaxAudioBytes:  getEnvInt64("MAX_AUDIO_BYTES", 100*1024*1024),
+		ASRModelsDir:   getEnv("ASR_MODELS_DIR", "./models/asr"),
+		ASRThreads:     getEnvInt("ASR_THREADS", 1),
 
 		DownloadTimeout:       getEnvInt64("DOWNLOAD_TIMEOUT", 30_000),
 		DialTimeout:           getEnvInt64("DIAL_TIMEOUT", 5_000),
@@ -119,6 +128,12 @@ func Load() (*Config, error) {
 	}
 	if c.MaxImageBytes <= 0 {
 		return nil, fmt.Errorf("MAX_IMAGE_BYTES must be greater than zero")
+	}
+	if c.MaxAudioBytes <= 0 {
+		return nil, fmt.Errorf("MAX_AUDIO_BYTES must be greater than zero")
+	}
+	if c.ASRModelsDir == "" || c.ASRThreads < 1 {
+		return nil, fmt.Errorf("ASR_MODELS_DIR must not be empty and ASR_THREADS must be greater than zero")
 	}
 	if c.MaxImagePixels <= 0 {
 		return nil, fmt.Errorf("MAX_IMAGE_PIXELS must be greater than zero")
@@ -163,7 +178,7 @@ func validUnitInterval(value float64) bool {
 
 func validateEnvironmentSyntax() error {
 	integerKeys := []string{
-		"MAX_IMAGE_BYTES", "MAX_IMAGE_PIXELS", "MAX_WIDTH", "MAX_HEIGHT",
+		"MAX_IMAGE_BYTES", "MAX_IMAGE_PIXELS", "MAX_WIDTH", "MAX_HEIGHT", "MAX_AUDIO_BYTES", "ASR_THREADS",
 		"DOWNLOAD_TIMEOUT", "DIAL_TIMEOUT", "TLS_HANDSHAKE_TIMEOUT",
 		"RESPONSE_HEADER_TIMEOUT", "MAX_REDIRECTS", "INFERENCE_CONCURRENCY",
 		"MAX_PENDING_INFERENCES", "ONNX_INTRA_OP_THREADS", "ONNX_INTER_OP_THREADS",

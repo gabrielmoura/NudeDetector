@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/gabrielmoura/NudeDetector/internal/aimodel"
+	"github.com/gabrielmoura/NudeDetector/internal/asr"
 	"github.com/gabrielmoura/NudeDetector/internal/cache"
 	"github.com/gabrielmoura/NudeDetector/internal/config"
 	"github.com/gabrielmoura/NudeDetector/internal/detector"
@@ -29,6 +30,7 @@ type Handler struct {
 	worker     *inference.Worker
 	detector   *detector.Detector
 	models     *aimodel.Registry
+	asr        asr.Transcriber
 }
 
 func New(
@@ -44,6 +46,7 @@ func New(
 	worker *inference.Worker,
 	bodyDetector *detector.Detector,
 	models *aimodel.Registry,
+	transcriber asr.Transcriber,
 ) *Handler {
 	return &Handler{
 		cfg:        cfg,
@@ -59,5 +62,6 @@ func New(
 		worker:     worker,
 		detector:   bodyDetector,
 		models:     models,
+		asr:        transcriber,
 	}
 }
