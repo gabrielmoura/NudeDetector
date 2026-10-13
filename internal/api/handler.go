@@ -3,6 +3,7 @@ package api
 import (
 	"log/slog"
 
+	"github.com/gabrielmoura/NudeDetector/internal/aimodel"
 	"github.com/gabrielmoura/NudeDetector/internal/cache"
 	"github.com/gabrielmoura/NudeDetector/internal/config"
 	"github.com/gabrielmoura/NudeDetector/internal/detector"
@@ -27,6 +28,7 @@ type Handler struct {
 	sg         *singleflight.Group
 	worker     *inference.Worker
 	detector   *detector.Detector
+	models     *aimodel.Registry
 }
 
 func New(
@@ -41,6 +43,7 @@ func New(
 	c cache.Cache,
 	worker *inference.Worker,
 	bodyDetector *detector.Detector,
+	models *aimodel.Registry,
 ) *Handler {
 	return &Handler{
 		cfg:        cfg,
@@ -55,5 +58,6 @@ func New(
 		sg:         &singleflight.Group{},
 		worker:     worker,
 		detector:   bodyDetector,
+		models:     models,
 	}
 }

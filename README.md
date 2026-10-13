@@ -37,6 +37,10 @@ Todos os comandos aceitam as flags globais `--addr` e `--runtime-library`.
 ```bash
 ./bin/nude-detector --help
 ./bin/nude-detector serve --addr :8080
+# Carrega somente o classificador NSFW (padrão), sem inicializar NudeNet.
+./bin/nude-detector serve --models nsfw-classifier
+# Habilita explicitamente os detalhes NudeNet para a mesma instância.
+./bin/nude-detector serve --models nsfw-classifier,nudenet-detector
 ./bin/nude-detector classify --input ./foto.jpg
 ./bin/nude-detector export --input ./video.mp4 --output ./moderated.jpg \
   --draw-boxes --blur --blur-radius 25 --frame-time-ms 1000
@@ -150,8 +154,16 @@ As variáveis principais são: `HTTP_ADDR`, `CLASSIFIER_MODEL_PATH`,
 `INFERENCE_CONCURRENCY`, `MAX_PENDING_INFERENCES`, `ONNX_INTRA_OP_THREADS`,
 `ONNX_INTER_OP_THREADS`, `CACHE_ENABLED`, `CACHE_MAX_ENTRIES`, `CACHE_TTL`,
 `DETECTOR_ENABLED`, `DETECTOR_MODEL_PATH`, `DETECTOR_MODEL_URL`,
-`DETECTOR_MODEL_SHA256`, `DETECTOR_SCORE_MINIMUM`, `DETECTOR_IOU_THRESHOLD` e
-`PPROF_ENABLED`. Valores de threshold são números entre `0` e `1`.
+`DETECTOR_MODEL_SHA256`, `DETECTOR_SCORE_MINIMUM`, `DETECTOR_IOU_THRESHOLD`,
+`ENABLED_MODELS` e `PPROF_ENABLED`. Valores de threshold são números entre
+`0` e `1`.
+
+`ENABLED_MODELS` aceita IDs separados por vírgula e controla exclusivamente o
+que o modo `serve` pode inicializar. O padrão é `nsfw-classifier`; portanto o
+processo não baixa nem mantém a sessão NudeNet até que
+`nudenet-detector` seja selecionado. A flag `serve --models` substitui a
+variável de ambiente. Consulte `GET /v1/models` e `GET /v1/models/{id}` para
+o catálogo, estado de instalação e seleção corrente.
 
 ## Erros e segurança
 

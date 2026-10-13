@@ -87,6 +87,9 @@ func TestLoadUsesSafeDefaults(t *testing.T) {
 	if c.MaxImageBytes <= 0 || c.MaxImagePixels <= 0 || c.InferenceConcurrency <= 0 {
 		t.Fatalf("Load() returned unsafe defaults: %#v", c)
 	}
+	if got := strings.Join(c.EnabledModels, ","); got != "nsfw-classifier" {
+		t.Fatalf("EnabledModels = %q, want nsfw-classifier", got)
+	}
 }
 
 func clearConfigEnvironment(t *testing.T) {

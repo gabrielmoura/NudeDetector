@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -15,6 +16,7 @@ type Config struct {
 	ClassifierMetadataPath string
 	ClassifierModelURL     string
 	ClassifierModelSHA256  string
+	EnabledModels          []string
 	PornReviewThreshold    float64
 	PornThreshold          float64
 	ClassifyHentaiAsPorn   bool
@@ -68,6 +70,7 @@ func Load() (*Config, error) {
 		ClassifierMetadataPath: getEnv("CLASSIFIER_METADATA_PATH", "./models/model.json"),
 		ClassifierModelURL:     getEnv("CLASSIFIER_MODEL_URL", "https://huggingface.co/onnx-community/nsfw-classifier-ONNX/resolve/main/onnx/model.onnx"),
 		ClassifierModelSHA256:  getEnv("CLASSIFIER_MODEL_SHA256", "d6e841f61f193d9f435b464748c772b4096edd941c9f12b3a05bcb655fb267eb"),
+		EnabledModels:          getEnvList("ENABLED_MODELS", "nsfw-classifier"),
 		PornReviewThreshold:    getEnvFloat("PORN_REVIEW_THRESHOLD", 0.40),
 		PornThreshold:          getEnvFloat("PORN_THRESHOLD", 0.80),
 		ClassifyHentaiAsPorn:   getEnvBool("CLASSIFY_HENTAI_AS_PORNOGRAPHY", false),
@@ -146,6 +149,9 @@ func Load() (*Config, error) {
 	}
 	if !validUnitInterval(c.DetectorIoUThreshold) {
 		return nil, fmt.Errorf("invalid DETECTOR_IOU_THRESHOLD")
+	}
+	if len(c.EnabledModels) == 0 {
+		return nil, fmt.Errorf("ENABLED_MODELS must contain at least one model")
 	}
 
 	return c, nil
@@ -237,4 +243,17 @@ func getEnvBool(k string, def bool) bool {
 		}
 	}
 	return def
+}
+
+func getEnvList(key, def string) []string {
+	value := getEnv(key, def)
+	parts := strings.Split(value, ",")
+	items := make([]string, 0, len(parts))
+	for _, part := range parts {
+		item := strings.TrimSpace(part)
+		if item != "" {
+			items = append(items, item)
+		}
+	}
+	return items
 }

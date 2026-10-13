@@ -20,8 +20,12 @@ import (
 )
 
 var errDetectorUnavailable = errors.New("visual details detector is unavailable")
+var errClassifierUnavailable = errors.New("NSFW classifier is unavailable")
 
 func (h *Handler) Classify(ctx context.Context, data []byte) (*moderation.ModerationResult, error) {
+	if h.engine == nil || h.worker == nil || h.proc == nil || h.classifier == nil {
+		return nil, errClassifierUnavailable
+	}
 	hash := util.SHA256(data)
 	if h.cache != nil {
 		if e, ok := h.cache.Get(hash + "|v1|" + h.meta.Name + "|" + h.meta.Version); ok {
@@ -197,6 +201,10 @@ func (h *Handler) classifyResponse(
 }
 
 func writeModerationError(w http.ResponseWriter, err error) {
+	if errors.Is(err, errClassifierUnavailable) {
+		writeErr(w, http.StatusServiceUnavailable, "classifier_unavailable", err.Error())
+		return
+	}
 	if errors.Is(err, errDetectorUnavailable) {
 		writeErr(w, http.StatusServiceUnavailable, "detector_unavailable", err.Error())
 		return

@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gabrielmoura/NudeDetector/internal/aimodel"
 	"github.com/gabrielmoura/NudeDetector/internal/api"
 	"github.com/gabrielmoura/NudeDetector/internal/buildinfo"
 	"github.com/gabrielmoura/NudeDetector/internal/cache"
@@ -42,11 +43,13 @@ type runtime struct {
 	modelPath      string
 	runtimeLibrary string
 	httpAddr       string
+	models         *aimodel.Registry
 }
 
 type runtimeOptions struct {
 	HTTPAddr       string
 	RuntimeLibrary string
+	Models         string
 }
 
 func main() {
@@ -66,7 +69,7 @@ func newRootCommand() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(command *cobra.Command, arguments []string) error {
-			runtime, err := newRuntime(options, true)
+			runtime, err := newRuntime(options, false)
 			if err != nil {
 				return err
 			}
@@ -87,11 +90,11 @@ func newRootCommand() *cobra.Command {
 }
 
 func newServeCommand(options *runtimeOptions) *cobra.Command {
-	return &cobra.Command{
+	command := &cobra.Command{
 		Use:   "serve",
 		Short: "Starts the HTTP API",
 		RunE: func(command *cobra.Command, arguments []string) error {
-			runtime, err := newRuntime(*options, true)
+			runtime, err := newRuntime(*options, false)
 			if err != nil {
 				return err
 			}
@@ -99,6 +102,8 @@ func newServeCommand(options *runtimeOptions) *cobra.Command {
 			return serve(runtime)
 		},
 	}
+	command.Flags().StringVar(&options.Models, "models", "", "comma-separated model IDs to load (overrides ENABLED_MODELS)")
+	return command
 }
 
 func newClassifyCommand(options *runtimeOptions) *cobra.Command {
@@ -201,6 +206,24 @@ func newRuntime(options runtimeOptions, loadDetector bool) (*runtime, error) {
 	if options.RuntimeLibrary != "" {
 		cfg.ONNXRuntimeLibraryPath = options.RuntimeLibrary
 	}
+	if options.Models != "" {
+		enabledModels, parseErr := aimodel.ParseEnabled(options.Models)
+		if parseErr != nil {
+			return nil, fmt.Errorf("parse --models: %w", parseErr)
+		}
+		cfg.EnabledModels = enabledModels
+	}
+	enabledModels := cfg.EnabledModels
+	if loadDetector && cfg.DetectorEnabled && !containsModel(enabledModels, aimodel.NudeNetDetectorID) {
+		enabledModels = append(enabledModels, aimodel.NudeNetDetectorID)
+	}
+	models, err := aimodel.New(cfg.ClassifierModelPath, cfg.DetectorModelPath, enabledModels)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateImplementedModels(models); err != nil {
+		return nil, err
+	}
 	executable, executableErr := os.Executable()
 	if executableErr != nil {
 		executable = ""
@@ -224,36 +247,49 @@ func newRuntime(options runtimeOptions, loadDetector bool) (*runtime, error) {
 	if err := ort.InitializeEnvironment(); err != nil {
 		return nil, fmt.Errorf("initialize ONNX Runtime: %w", err)
 	}
-	if err := modelstore.Ensure(cfg.ClassifierModelPath, cfg.ClassifierModelURL, cfg.ClassifierModelSHA256); err != nil {
-		ort.DestroyEnvironment()
-		return nil, err
-	}
-	metadata, err := model.LoadMetadata(cfg.ClassifierMetadataPath)
-	if err != nil {
-		ort.DestroyEnvironment()
-		return nil, fmt.Errorf("load classifier metadata: %w", err)
-	}
-	engine, err := inference.NewONNX(cfg.ClassifierModelPath, cfg.ONNXIntraOpThreads, cfg.ONNXInterOpThreads)
-	if err != nil {
-		ort.DestroyEnvironment()
-		return nil, err
-	}
-	processor, err := imageprocessor.New(metadata)
-	if err != nil {
-		engine.Close()
-		ort.DestroyEnvironment()
-		return nil, fmt.Errorf("initialize image processor: %w", err)
-	}
-	classifier, err := moderation.NewClassifier(metadata)
-	if err != nil {
-		engine.Close()
-		ort.DestroyEnvironment()
-		return nil, err
-	}
-	if err := warmupClassifier(engine, classifier, metadata); err != nil {
-		engine.Close()
-		ort.DestroyEnvironment()
-		return nil, err
+	var metadata *model.ModelMetadata
+	var engine inference.Engine
+	var processor *imageprocessor.Processor
+	var classifier moderation.Classifier
+	var worker *inference.Worker
+	if models.Enabled(aimodel.NSFWClassifierID) {
+		if err := modelstore.Ensure(cfg.ClassifierModelPath, cfg.ClassifierModelURL, cfg.ClassifierModelSHA256); err != nil {
+			ort.DestroyEnvironment()
+			return nil, err
+		}
+		metadata, err = model.LoadMetadata(cfg.ClassifierMetadataPath)
+		if err != nil {
+			ort.DestroyEnvironment()
+			return nil, fmt.Errorf("load classifier metadata: %w", err)
+		}
+		engine, err = inference.NewONNX(cfg.ClassifierModelPath, cfg.ONNXIntraOpThreads, cfg.ONNXInterOpThreads)
+		if err != nil {
+			ort.DestroyEnvironment()
+			return nil, err
+		}
+		processor, err = imageprocessor.New(metadata)
+		if err != nil {
+			engine.Close()
+			ort.DestroyEnvironment()
+			return nil, fmt.Errorf("initialize image processor: %w", err)
+		}
+		classifier, err = moderation.NewClassifier(metadata)
+		if err != nil {
+			engine.Close()
+			ort.DestroyEnvironment()
+			return nil, err
+		}
+		if err := warmupClassifier(engine, classifier, metadata); err != nil {
+			engine.Close()
+			ort.DestroyEnvironment()
+			return nil, err
+		}
+		worker = inference.NewWorker(engine, cfg.InferenceConcurrency, cfg.MaxPendingInferences)
+		if err := models.MarkLoaded(aimodel.NSFWClassifierID); err != nil {
+			engine.Close()
+			ort.DestroyEnvironment()
+			return nil, err
+		}
 	}
 	policy := moderation.NewPolicy(cfg.PornReviewThreshold, cfg.PornThreshold)
 	fetcher := downloader.NewSafeFetcher(cfg.DialTimeout, cfg.TLSHandshakeTimeout, cfg.ResponseHeaderTimeout, cfg.DownloadTimeout, cfg.MaxRedirects, cfg.MaxImageBytes)
@@ -261,27 +297,47 @@ func newRuntime(options runtimeOptions, loadDetector bool) (*runtime, error) {
 	if cfg.CacheEnabled {
 		resultCache = cache.NewMemory(cfg.CacheMaxEntries, cfg.CacheTTL)
 	}
-	worker := inference.NewWorker(engine, cfg.InferenceConcurrency, cfg.MaxPendingInferences)
 	var bodyDetector *detector.Detector
-	if loadDetector && cfg.DetectorEnabled {
+	if models.Enabled(aimodel.NudeNetDetectorID) {
+		if !cfg.DetectorEnabled {
+			if engine != nil {
+				engine.Close()
+			}
+			ort.DestroyEnvironment()
+			return nil, fmt.Errorf("nudenet-detector is selected but DETECTOR_ENABLED is false")
+		}
 		if err := modelstore.Ensure(cfg.DetectorModelPath, cfg.DetectorModelURL, cfg.DetectorModelSHA256); err != nil {
-			engine.Close()
+			if engine != nil {
+				engine.Close()
+			}
 			ort.DestroyEnvironment()
 			return nil, err
 		}
 		bodyDetector, err = detector.New(cfg.DetectorModelPath, float32(cfg.DetectorScoreMinimum), float32(cfg.DetectorIoUThreshold))
 		if err != nil {
-			engine.Close()
+			if engine != nil {
+				engine.Close()
+			}
+			ort.DestroyEnvironment()
+			return nil, err
+		}
+		if err := models.MarkLoaded(aimodel.NudeNetDetectorID); err != nil {
+			_ = bodyDetector.Close()
+			if engine != nil {
+				engine.Close()
+			}
 			ort.DestroyEnvironment()
 			return nil, err
 		}
 	}
-	observability.ModelLoaded = true
+	observability.ModelLoaded = metadata != nil || bodyDetector != nil
 	observability.ReadyFlag = true
-	observability.ModelInfo.WithLabelValues(metadata.Name, metadata.Version).Set(1)
+	if metadata != nil {
+		observability.ModelInfo.WithLabelValues(metadata.Name, metadata.Version).Set(1)
+	}
 	observability.Register(prometheus.DefaultRegisterer)
 	return &runtime{
-		handler:        api.New(cfg, log, metadata, engine, processor, classifier, policy, fetcher, resultCache, worker, bodyDetector),
+		handler:        api.New(cfg, log, metadata, engine, processor, classifier, policy, fetcher, resultCache, worker, bodyDetector, models),
 		engine:         engine,
 		worker:         worker,
 		detector:       bodyDetector,
@@ -290,7 +346,28 @@ func newRuntime(options runtimeOptions, loadDetector bool) (*runtime, error) {
 		modelPath:      cfg.ClassifierModelPath,
 		runtimeLibrary: runtimeLibrary,
 		httpAddr:       cfg.HTTPAddr,
+		models:         models,
 	}, nil
+}
+
+func validateImplementedModels(models *aimodel.Registry) error {
+	for _, id := range models.EnabledIDs() {
+		switch id {
+		case aimodel.NSFWClassifierID, aimodel.NudeNetDetectorID:
+		default:
+			return fmt.Errorf("model %q is registered but its service is not implemented yet", id)
+		}
+	}
+	return nil
+}
+
+func containsModel(models []string, wanted string) bool {
+	for _, id := range models {
+		if id == wanted {
+			return true
+		}
+	}
+	return false
 }
 
 func warmupClassifier(
@@ -327,7 +404,9 @@ func (r *runtime) Close() {
 	if r.detector != nil {
 		_ = r.detector.Close()
 	}
-	_ = r.engine.Close()
+	if r.engine != nil {
+		_ = r.engine.Close()
+	}
 	_ = ort.DestroyEnvironment()
 }
 
@@ -338,20 +417,26 @@ func serve(runtime *runtime) error {
 	}
 	defer listener.Close()
 	host, port, _ := net.SplitHostPort(listener.Addr().String())
-	runtime.log.Info("server_started",
+	logAttributes := []slog.Attr{
 		slog.String("version", buildinfo.Version),
 		slog.String("commit", buildinfo.Commit),
 		slog.String("build_time", buildinfo.BuildTime),
 		slog.String("listen_address", listener.Addr().String()),
 		slog.String("host", host),
 		slog.String("port", port),
-		slog.String("model_name", runtime.metadata.Name),
-		slog.String("model_version", runtime.metadata.Version),
-		slog.String("model_path", runtime.modelPath),
-		slog.Any("model_labels", runtime.metadata.Labels),
 		slog.String("onnx_runtime_library", runtime.runtimeLibrary),
 		slog.Bool("detector_enabled", runtime.detector != nil),
-	)
+		slog.Any("enabled_models", runtime.models.EnabledIDs()),
+	}
+	if runtime.metadata != nil {
+		logAttributes = append(logAttributes,
+			slog.String("model_name", runtime.metadata.Name),
+			slog.String("model_version", runtime.metadata.Version),
+			slog.String("model_path", runtime.modelPath),
+			slog.Any("model_labels", runtime.metadata.Labels),
+		)
+	}
+	runtime.log.LogAttrs(context.Background(), slog.LevelInfo, "server_started", logAttributes...)
 	server := &http.Server{Addr: runtime.httpAddr, Handler: runtime.handler.Router(), ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 90 * time.Second}
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
