@@ -39,6 +39,7 @@ type Config struct {
 	TranslationMaxInputTokens  int
 	TranslationMaxOutputTokens int
 	TranslationMaxCharacters   int
+	TranslationMaxBatch        int
 
 	// Download
 	DownloadTimeout       int64 // ms
@@ -102,6 +103,7 @@ func Load() (*Config, error) {
 		TranslationMaxInputTokens:  getEnvInt("TRANSLATION_MAX_INPUT_TOKENS", 256),
 		TranslationMaxOutputTokens: getEnvInt("TRANSLATION_MAX_OUTPUT_TOKENS", 256),
 		TranslationMaxCharacters:   getEnvInt("TRANSLATION_MAX_CHARACTERS", 16_000),
+		TranslationMaxBatch:        getEnvInt("TRANSLATION_MAX_BATCH", 32),
 
 		DownloadTimeout:       getEnvInt64("DOWNLOAD_TIMEOUT", 30_000),
 		DialTimeout:           getEnvInt64("DIAL_TIMEOUT", 5_000),
@@ -152,7 +154,7 @@ func Load() (*Config, error) {
 	if c.OCRModelsDir == "" || c.OCRMaxSide < 32 {
 		return nil, fmt.Errorf("OCR_MODELS_DIR must not be empty and OCR_MAX_SIDE must be at least 32")
 	}
-	if c.TranslationModelsDir == "" || c.TranslationMaxInputTokens < 1 || c.TranslationMaxOutputTokens < 1 || c.TranslationMaxCharacters < 1 {
+	if c.TranslationModelsDir == "" || c.TranslationMaxInputTokens < 1 || c.TranslationMaxOutputTokens < 1 || c.TranslationMaxCharacters < 1 || c.TranslationMaxBatch < 1 {
 		return nil, fmt.Errorf("translation model directory and limits must be greater than zero")
 	}
 	if c.MaxImagePixels <= 0 {
@@ -198,7 +200,7 @@ func validUnitInterval(value float64) bool {
 
 func validateEnvironmentSyntax() error {
 	integerKeys := []string{
-		"MAX_IMAGE_BYTES", "MAX_IMAGE_PIXELS", "MAX_WIDTH", "MAX_HEIGHT", "MAX_AUDIO_BYTES", "ASR_THREADS", "ASR_MAX_DURATION_SECONDS", "OCR_MAX_SIDE", "TRANSLATION_MAX_INPUT_TOKENS", "TRANSLATION_MAX_OUTPUT_TOKENS", "TRANSLATION_MAX_CHARACTERS",
+		"MAX_IMAGE_BYTES", "MAX_IMAGE_PIXELS", "MAX_WIDTH", "MAX_HEIGHT", "MAX_AUDIO_BYTES", "ASR_THREADS", "ASR_MAX_DURATION_SECONDS", "OCR_MAX_SIDE", "TRANSLATION_MAX_INPUT_TOKENS", "TRANSLATION_MAX_OUTPUT_TOKENS", "TRANSLATION_MAX_CHARACTERS", "TRANSLATION_MAX_BATCH",
 		"DOWNLOAD_TIMEOUT", "DIAL_TIMEOUT", "TLS_HANDSHAKE_TIMEOUT",
 		"RESPONSE_HEADER_TIMEOUT", "MAX_REDIRECTS", "INFERENCE_CONCURRENCY",
 		"MAX_PENDING_INFERENCES", "ONNX_INTRA_OP_THREADS", "ONNX_INTER_OP_THREADS",

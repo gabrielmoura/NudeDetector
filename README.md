@@ -140,6 +140,11 @@ inversa, use a revisão `f60feaabe8bb435a5871e7702b25f53a01e770f8` de
 curl -sS -X POST http://localhost:8080/v1/translations \
   -H 'Content-Type: application/json' \
   -d '{"text":"Hello world","source_language":"en","target_language":"pt"}'
+
+# Lote: a resposta contém {"translations":[...]}.
+curl -sS -X POST http://localhost:8080/v1/translations \
+  -H 'Content-Type: application/json' \
+  -d '{"texts":["Hello","Good morning"],"source_language":"en","target_language":"pt"}'
 ```
 
 `classify` lê uma imagem local e escreve JSON no stdout. `export` aceita imagem,
@@ -252,7 +257,7 @@ As variáveis principais são: `HTTP_ADDR`, `CLASSIFIER_MODEL_PATH`,
 `ASR_MAX_DURATION_SECONDS`,
 `OCR_MODELS_DIR`, `OCR_MAX_SIDE`, `TRANSLATION_MODELS_DIR`,
 `TRANSLATION_MAX_INPUT_TOKENS`, `TRANSLATION_MAX_OUTPUT_TOKENS`,
-`TRANSLATION_MAX_CHARACTERS` e `PPROF_ENABLED`. Valores de threshold são números entre
+`TRANSLATION_MAX_CHARACTERS`, `TRANSLATION_MAX_BATCH` e `PPROF_ENABLED`. Valores de threshold são números entre
 `0` e `1`.
 
 `ENABLED_MODELS` aceita IDs separados por vírgula e controla exclusivamente o

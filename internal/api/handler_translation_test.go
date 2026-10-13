@@ -24,7 +24,7 @@ func TestTranslationEndpointUsesSharedTranslator(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler := &Handler{cfg: &config.Config{TranslationMaxCharacters: 100}, models: registry, translator: translationStub{}}
+	handler := &Handler{cfg: &config.Config{TranslationMaxCharacters: 100, TranslationMaxBatch: 1}, models: registry, translator: translationStub{}}
 	request := httptest.NewRequest(http.MethodPost, "/v1/translations", strings.NewReader(`{"text":"Hello","source_language":"en","target_language":"pt","model":"opus-mt-en-romance"}`))
 	response := httptest.NewRecorder()
 	handler.handleTranslation(response, request)
@@ -43,5 +43,22 @@ func TestTranslationEndpointRejectsUnavailableService(t *testing.T) {
 	handler.handleTranslation(response, request)
 	if response.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func TestTranslationEndpointTranslatesBatch(t *testing.T) {
+	registry, err := aimodel.New("classifier.onnx", "detector.onnx", []string{"opus-mt-en-romance"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := &Handler{cfg: &config.Config{TranslationMaxCharacters: 100, TranslationMaxBatch: 2}, models: registry, translator: translationStub{}}
+	request := httptest.NewRequest(http.MethodPost, "/v1/translations", strings.NewReader(`{"texts":["Hello","Hi"],"source_language":"en","target_language":"pt"}`))
+	response := httptest.NewRecorder()
+	handler.handleTranslation(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d: %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	if strings.Count(response.Body.String(), `"translated_text":"Olá"`) != 2 {
+		t.Fatalf("response = %s", response.Body.String())
 	}
 }
