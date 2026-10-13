@@ -447,7 +447,7 @@ func newTranslator(cfg *config.Config, models *aimodel.Registry) (translation.Tr
 		sources, targets = []string{"pt", "es", "fr", "it"}, []string{"en"}
 	}
 	dir := filepath.Join(cfg.TranslationModelsDir, selected)
-	translator, err := translation.NewOPUS(translation.OPUSConfig{ModelID: selected, EncoderPath: filepath.Join(dir, "encoder.onnx"), DecoderPath: filepath.Join(dir, "decoder.onnx"), TokenizerPath: filepath.Join(dir, "tokenizer.json"), VocabularyPath: filepath.Join(dir, "vocab.json"), SupportedSources: sources, SupportedTargets: targets, MaxInputTokens: cfg.TranslationMaxInputTokens, MaxOutputTokens: cfg.TranslationMaxOutputTokens})
+	translator, err := translation.NewOPUS(translation.OPUSConfig{ModelID: selected, EncoderPath: filepath.Join(dir, "encoder.onnx"), DecoderPath: filepath.Join(dir, "decoder.onnx"), TokenizerPath: filepath.Join(dir, "tokenizer.json"), VocabularyPath: filepath.Join(dir, "vocab.json"), SupportedSources: sources, SupportedTargets: targets, TargetPrefix: selected == "opus-mt-en-romance", MaxInputTokens: cfg.TranslationMaxInputTokens, MaxOutputTokens: cfg.TranslationMaxOutputTokens})
 	if err != nil {
 		return nil, fmt.Errorf("initialize %s: %w", selected, err)
 	}

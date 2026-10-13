@@ -32,6 +32,7 @@ type OPUSConfig struct {
 	VocabularyPath   string
 	SupportedSources []string
 	SupportedTargets []string
+	TargetPrefix     bool
 	MaxInputTokens   int
 	MaxOutputTokens  int
 }
@@ -49,6 +50,7 @@ type OPUS struct {
 	supportedTargets map[string]struct{}
 	maxInputTokens   int
 	maxOutputTokens  int
+	targetPrefix     bool
 	mu               sync.Mutex
 }
 
@@ -97,6 +99,7 @@ func NewOPUS(config OPUSConfig) (*OPUS, error) {
 		modelID: config.ModelID, encoder: encoder, decoder: decoder, tokenizer: tokenizer,
 		targetTokenIDs: vocabulary, supportedSources: languageSet(config.SupportedSources), supportedTargets: languageSet(config.SupportedTargets),
 		maxInputTokens: config.MaxInputTokens, maxOutputTokens: config.MaxOutputTokens,
+		targetPrefix: config.TargetPrefix,
 	}, nil
 }
 
@@ -118,19 +121,25 @@ func (o *OPUS) Translate(ctx context.Context, request Request) (Result, error) {
 	if _, ok := o.supportedTargets[target]; !ok {
 		return Result{}, fmt.Errorf("model %q does not support target language %q", o.modelID, target)
 	}
-	targetTokenID, ok := o.targetTokenIDs[">>"+target+"<<"]
-	if !ok {
+	targetTokenID, hasTargetToken := o.targetTokenIDs[">>"+target+"<<"]
+	if o.targetPrefix && !hasTargetToken {
 		return Result{}, fmt.Errorf("model %q has no target token for %q", o.modelID, target)
 	}
 	encoded, err := o.tokenizer.Encode(text)
 	if err != nil {
 		return Result{}, fmt.Errorf("tokenize translation input: %w", err)
 	}
-	if len(encoded)+2 > o.maxInputTokens {
+	prefixTokens := 1
+	if !o.targetPrefix {
+		prefixTokens = 0
+	}
+	if len(encoded)+prefixTokens+1 > o.maxInputTokens {
 		return Result{}, fmt.Errorf("translation input exceeds %d tokens", o.maxInputTokens)
 	}
-	inputIDs := make([]int64, 0, len(encoded)+2)
-	inputIDs = append(inputIDs, targetTokenID)
+	inputIDs := make([]int64, 0, len(encoded)+prefixTokens+1)
+	if o.targetPrefix {
+		inputIDs = append(inputIDs, targetTokenID)
+	}
 	for _, id := range encoded {
 		inputIDs = append(inputIDs, int64(id))
 	}
