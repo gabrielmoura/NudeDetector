@@ -1,7 +1,10 @@
 package asr
 
 import (
+	"bytes"
+	"context"
 	"encoding/binary"
+	"os/exec"
 	"testing"
 )
 
@@ -18,6 +21,33 @@ func TestDecodeWAVDownmixesPCM16(t *testing.T) {
 	}
 	if audio.Samples[0] != 0 {
 		t.Fatalf("downmixed sample = %v, want 0", audio.Samples[0])
+	}
+}
+
+func TestDecodeAudioNormalizesMP3WithFFmpeg(t *testing.T) {
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg is not installed")
+	}
+	wav := makeWAV(1, 16, bytes.Repeat([]byte{0, 0}, 16_000))
+	command := exec.Command("ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "wav", "-i", "pipe:0", "-f", "mp3", "pipe:1")
+	command.Stdin = bytes.NewReader(wav)
+	mp3, err := command.Output()
+	if err != nil {
+		t.Fatalf("create MP3 fixture: %v", err)
+	}
+	audio, err := DecodeAudio(context.Background(), mp3, 2)
+	if err != nil {
+		t.Fatalf("DecodeAudio() error = %v", err)
+	}
+	if audio.SampleRate != whisperSampleRate || len(audio.Samples) == 0 {
+		t.Fatalf("DecodeAudio() = %#v", audio)
+	}
+}
+
+func TestDecodeAudioRejectsExcessiveDuration(t *testing.T) {
+	wav := makeWAV(1, 16, bytes.Repeat([]byte{0, 0}, 16_001))
+	if _, err := DecodeAudio(context.Background(), wav, 1); err == nil {
+		t.Fatal("DecodeAudio() error = nil")
 	}
 }
 

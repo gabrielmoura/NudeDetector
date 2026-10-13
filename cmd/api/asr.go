@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/gabrielmoura/NudeDetector/internal/asr"
+	"github.com/gabrielmoura/NudeDetector/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -22,15 +23,19 @@ func newTranscribeCommand(options *runtimeOptions) *cobra.Command {
 	var modelID, language, format string
 	var timestamps bool
 	command := &cobra.Command{
-		Use:   "transcribe AUDIO.wav",
-		Short: "Transcribes a WAV audio file",
+		Use:   "transcribe AUDIO",
+		Short: "Transcribes WAV, MP3, OGG, M4A/AAC, or FLAC audio",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, arguments []string) error {
 			data, err := os.ReadFile(arguments[0])
 			if err != nil {
 				return fmt.Errorf("read audio: %w", err)
 			}
-			audio, err := asr.DecodeWAV(data)
+			cfg, err := config.Load()
+			if err != nil {
+				return err
+			}
+			audio, err := asr.DecodeAudio(command.Context(), data, cfg.ASRMaxDurationSeconds)
 			if err != nil {
 				return fmt.Errorf("decode WAV: %w", err)
 			}

@@ -77,9 +77,9 @@ Para a API, inicie com `--models whisper-tiny` (ou defina
 modelo expor segmentos confiáveis; timestamps de token retornados pelo Sherpa
 ficam em `metadata.token_timestamps_seconds` quando solicitados.
 
-Neste incremento o decodificador embutido aceita WAV PCM/float. MP3, OGG,
-M4A/AAC e FLAC exigirão a etapa complementar baseada em FFmpeg; não são
-aceitos silenciosamente como WAV.
+WAV PCM/float usa o decodificador embutido. MP3, OGG/Opus, M4A/AAC e FLAC são
+normalizados por FFmpeg, chamado sem shell, para PCM mono a 16 kHz. Defina
+`ASR_MAX_DURATION_SECONDS` (padrão: 7200) para limitar a duração aceita.
 
 ### OCR local (PP-OCRv6)
 
@@ -246,6 +246,7 @@ As variáveis principais são: `HTTP_ADDR`, `CLASSIFIER_MODEL_PATH`,
 `DETECTOR_ENABLED`, `DETECTOR_MODEL_PATH`, `DETECTOR_MODEL_URL`,
 `DETECTOR_MODEL_SHA256`, `DETECTOR_SCORE_MINIMUM`, `DETECTOR_IOU_THRESHOLD`,
 `ENABLED_MODELS`, `MAX_AUDIO_BYTES`, `ASR_MODELS_DIR`, `ASR_THREADS`,
+`ASR_MAX_DURATION_SECONDS`,
 `OCR_MODELS_DIR`, `OCR_MAX_SIDE`, `TRANSLATION_MODELS_DIR`,
 `TRANSLATION_MAX_INPUT_TOKENS`, `TRANSLATION_MAX_OUTPUT_TOKENS`,
 `TRANSLATION_MAX_CHARACTERS` e `PPROF_ENABLED`. Valores de threshold são números entre

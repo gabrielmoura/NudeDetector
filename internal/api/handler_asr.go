@@ -41,7 +41,7 @@ func (h *Handler) handleTranscription(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusRequestEntityTooLarge, "audio_too_large", "audio exceeds limit")
 		return
 	}
-	audio, err := asr.DecodeWAV(data)
+	audio, err := asr.DecodeAudio(r.Context(), data, h.cfg.ASRMaxDurationSeconds)
 	if err != nil {
 		writeErr(w, http.StatusUnsupportedMediaType, "unsupported_audio", err.Error())
 		return

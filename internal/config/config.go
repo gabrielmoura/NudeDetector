@@ -32,6 +32,7 @@ type Config struct {
 	// downloaded while serving inference requests.
 	ASRModelsDir               string
 	ASRThreads                 int
+	ASRMaxDurationSeconds      int
 	OCRModelsDir               string
 	OCRMaxSide                 int
 	TranslationModelsDir       string
@@ -94,6 +95,7 @@ func Load() (*Config, error) {
 		MaxAudioBytes:              getEnvInt64("MAX_AUDIO_BYTES", 100*1024*1024),
 		ASRModelsDir:               getEnv("ASR_MODELS_DIR", "./models/asr"),
 		ASRThreads:                 getEnvInt("ASR_THREADS", 1),
+		ASRMaxDurationSeconds:      getEnvInt("ASR_MAX_DURATION_SECONDS", 7_200),
 		OCRModelsDir:               getEnv("OCR_MODELS_DIR", "./models/ocr"),
 		OCRMaxSide:                 getEnvInt("OCR_MAX_SIDE", 960),
 		TranslationModelsDir:       getEnv("TRANSLATION_MODELS_DIR", "./models/translation"),
@@ -144,8 +146,8 @@ func Load() (*Config, error) {
 	if c.MaxAudioBytes <= 0 {
 		return nil, fmt.Errorf("MAX_AUDIO_BYTES must be greater than zero")
 	}
-	if c.ASRModelsDir == "" || c.ASRThreads < 1 {
-		return nil, fmt.Errorf("ASR_MODELS_DIR must not be empty and ASR_THREADS must be greater than zero")
+	if c.ASRModelsDir == "" || c.ASRThreads < 1 || c.ASRMaxDurationSeconds < 1 {
+		return nil, fmt.Errorf("ASR model directory, thread count, and duration limit must be valid")
 	}
 	if c.OCRModelsDir == "" || c.OCRMaxSide < 32 {
 		return nil, fmt.Errorf("OCR_MODELS_DIR must not be empty and OCR_MAX_SIDE must be at least 32")
@@ -196,7 +198,7 @@ func validUnitInterval(value float64) bool {
 
 func validateEnvironmentSyntax() error {
 	integerKeys := []string{
-		"MAX_IMAGE_BYTES", "MAX_IMAGE_PIXELS", "MAX_WIDTH", "MAX_HEIGHT", "MAX_AUDIO_BYTES", "ASR_THREADS", "OCR_MAX_SIDE", "TRANSLATION_MAX_INPUT_TOKENS", "TRANSLATION_MAX_OUTPUT_TOKENS", "TRANSLATION_MAX_CHARACTERS",
+		"MAX_IMAGE_BYTES", "MAX_IMAGE_PIXELS", "MAX_WIDTH", "MAX_HEIGHT", "MAX_AUDIO_BYTES", "ASR_THREADS", "ASR_MAX_DURATION_SECONDS", "OCR_MAX_SIDE", "TRANSLATION_MAX_INPUT_TOKENS", "TRANSLATION_MAX_OUTPUT_TOKENS", "TRANSLATION_MAX_CHARACTERS",
 		"DOWNLOAD_TIMEOUT", "DIAL_TIMEOUT", "TLS_HANDSHAKE_TIMEOUT",
 		"RESPONSE_HEADER_TIMEOUT", "MAX_REDIRECTS", "INFERENCE_CONCURRENCY",
 		"MAX_PENDING_INFERENCES", "ONNX_INTRA_OP_THREADS", "ONNX_INTER_OP_THREADS",
