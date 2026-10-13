@@ -68,6 +68,7 @@ Após a instalação, o primeiro caminho efetivo é WAV PCM ou float:
 ```bash
 ./bin/nude-detector asr transcribe audio.wav --model whisper-tiny --language pt
 ./bin/nude-detector asr transcribe audio.wav --model whisper-tiny --format json --timestamps
+./bin/nude-detector asr transcribe audio.mp3 --model whisper-tiny --format text --output resultado.txt
 curl -sS -X POST http://localhost:8080/v1/audio/transcriptions \
   -F file=@audio.wav -F language=pt -F timestamps=true
 ```
@@ -95,6 +96,7 @@ models/ocr/pp-ocrv6-tiny/rec.yml
 
 ```bash
 ./bin/nude-detector ocr recognize imagem.png --model pp-ocrv6-tiny --boxes
+./bin/nude-detector ocr recognize imagem.png --format json --boxes --output resultado.json
 ./bin/nude-detector serve --models pp-ocrv6-tiny
 curl -sS -X POST http://localhost:8080/v1/ocr -F image=@imagem.png -F return_boxes=true
 ```
@@ -133,6 +135,7 @@ inversa, use a revisão `f60feaabe8bb435a5871e7702b25f53a01e770f8` de
 ```bash
 ./bin/nude-detector translate 'Hello world' --from en --to pt
 ./bin/nude-detector translate --file texto.txt --from pt --to en --model opus-mt-romance-en --format json
+./bin/nude-detector translate 'Hello world' --from en --to pt --output resultado.txt
 ./bin/nude-detector serve --models opus-mt-en-romance
 curl -sS -X POST http://localhost:8080/v1/translations \
   -H 'Content-Type: application/json' \

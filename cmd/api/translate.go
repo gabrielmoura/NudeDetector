@@ -10,7 +10,7 @@ import (
 )
 
 func newTranslateCommand(options *runtimeOptions) *cobra.Command {
-	var modelID, source, target, filePath, format string
+	var modelID, source, target, filePath, format, outputPath string
 	command := &cobra.Command{Use: "translate [TEXT]", Short: "Translates text with an installed local model", Args: cobra.MaximumNArgs(1), RunE: func(command *cobra.Command, arguments []string) error {
 		var text string
 		if filePath != "" {
@@ -38,19 +38,25 @@ func newTranslateCommand(options *runtimeOptions) *cobra.Command {
 		if err != nil {
 			return err
 		}
+		writer, closeOutput, err := outputWriter(outputPath, command.OutOrStdout())
+		if err != nil {
+			return fmt.Errorf("open output: %w", err)
+		}
+		defer closeOutput()
 		if format == "text" {
-			_, err = fmt.Fprintln(command.OutOrStdout(), result.TranslatedText)
+			_, err = fmt.Fprintln(writer, result.TranslatedText)
 			return err
 		}
 		if format != "json" {
 			return fmt.Errorf("--format must be text or json")
 		}
-		return json.NewEncoder(command.OutOrStdout()).Encode(result)
+		return json.NewEncoder(writer).Encode(result)
 	}}
 	command.Flags().StringVar(&modelID, "model", "opus-mt-en-romance", "installed translation model ID")
 	command.Flags().StringVar(&source, "from", "", "source language, for example en")
 	command.Flags().StringVar(&target, "to", "", "target language, for example pt")
 	command.Flags().StringVar(&filePath, "file", "", "read source text from a file")
 	command.Flags().StringVar(&format, "format", "text", "output format: text or json")
+	command.Flags().StringVarP(&outputPath, "output", "o", "", "write output to a file instead of stdout")
 	return command
 }
