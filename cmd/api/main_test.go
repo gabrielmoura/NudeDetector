@@ -24,7 +24,7 @@ func TestRootCommandExposesAPIAndLocalCommands(t *testing.T) {
 	t.Parallel()
 
 	root := newRootCommand()
-	for _, name := range []string{"serve", "classify", "export", "scan", "asr"} {
+	for _, name := range []string{"serve", "classify", "export", "scan", "asr", "ocr"} {
 		if command, _, err := root.Find([]string{name}); err != nil || command == root {
 			t.Fatalf("command %q is not registered: %v", name, err)
 		}

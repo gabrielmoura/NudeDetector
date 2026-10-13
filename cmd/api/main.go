@@ -28,6 +28,7 @@ import (
 	"github.com/gabrielmoura/NudeDetector/internal/modelstore"
 	"github.com/gabrielmoura/NudeDetector/internal/moderation"
 	"github.com/gabrielmoura/NudeDetector/internal/observability"
+	"github.com/gabrielmoura/NudeDetector/internal/ocr"
 	"github.com/gabrielmoura/NudeDetector/internal/runtimepath"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
@@ -40,6 +41,7 @@ type runtime struct {
 	worker         *inference.Worker
 	detector       *detector.Detector
 	transcriber    asr.Transcriber
+	ocrRecognizer  ocr.Recognizer
 	ortInitialized bool
 	log            *slog.Logger
 	metadata       *model.ModelMetadata
@@ -87,6 +89,7 @@ func newRootCommand() *cobra.Command {
 		newClassifyCommand(&options),
 		newExportCommand(&options),
 		newASRCommand(&options),
+		newOCRCommand(&options),
 		newScanCommand(&options),
 		newVersionCommand(),
 	)
@@ -228,7 +231,7 @@ func newRuntime(options runtimeOptions, loadDetector bool) (*runtime, error) {
 	if err := validateImplementedModels(models); err != nil {
 		return nil, err
 	}
-	needsONNXRuntime := models.Enabled(aimodel.NSFWClassifierID) || models.Enabled(aimodel.NudeNetDetectorID)
+	needsONNXRuntime := models.Enabled(aimodel.NSFWClassifierID) || models.Enabled(aimodel.NudeNetDetectorID) || models.Enabled("pp-ocrv6-tiny") || models.Enabled("pp-ocrv6-small")
 	var runtimeLibrary string
 	ortInitialized := false
 	if needsONNXRuntime {
@@ -353,14 +356,30 @@ func newRuntime(options runtimeOptions, loadDetector bool) (*runtime, error) {
 		}
 		return nil, err
 	}
-	observability.ModelLoaded = metadata != nil || bodyDetector != nil || transcriber != nil
+	ocrRecognizer, err := newOCRRecognizer(cfg, models)
+	if err != nil {
+		if transcriber != nil {
+			_ = transcriber.Close()
+		}
+		if bodyDetector != nil {
+			_ = bodyDetector.Close()
+		}
+		if engine != nil {
+			_ = engine.Close()
+		}
+		if ortInitialized {
+			_ = ort.DestroyEnvironment()
+		}
+		return nil, err
+	}
+	observability.ModelLoaded = metadata != nil || bodyDetector != nil || transcriber != nil || ocrRecognizer != nil
 	observability.ReadyFlag = true
 	if metadata != nil {
 		observability.ModelInfo.WithLabelValues(metadata.Name, metadata.Version).Set(1)
 	}
 	observability.Register(prometheus.DefaultRegisterer)
 	return &runtime{
-		handler:        api.New(cfg, log, metadata, engine, processor, classifier, policy, fetcher, resultCache, worker, bodyDetector, models, transcriber),
+		handler:        api.New(cfg, log, metadata, engine, processor, classifier, policy, fetcher, resultCache, worker, bodyDetector, models, transcriber, ocrRecognizer),
 		engine:         engine,
 		worker:         worker,
 		detector:       bodyDetector,
@@ -371,6 +390,7 @@ func newRuntime(options runtimeOptions, loadDetector bool) (*runtime, error) {
 		httpAddr:       cfg.HTTPAddr,
 		models:         models,
 		transcriber:    transcriber,
+		ocrRecognizer:  ocrRecognizer,
 		ortInitialized: ortInitialized,
 	}, nil
 }
@@ -378,12 +398,37 @@ func newRuntime(options runtimeOptions, loadDetector bool) (*runtime, error) {
 func validateImplementedModels(models *aimodel.Registry) error {
 	for _, id := range models.EnabledIDs() {
 		switch id {
-		case aimodel.NSFWClassifierID, aimodel.NudeNetDetectorID, "whisper-tiny", "whisper-base", "whisper-small":
+		case aimodel.NSFWClassifierID, aimodel.NudeNetDetectorID, "whisper-tiny", "whisper-base", "whisper-small", "pp-ocrv6-tiny", "pp-ocrv6-small":
 		default:
 			return fmt.Errorf("model %q is registered but its service is not implemented yet", id)
 		}
 	}
 	return nil
+}
+
+func newOCRRecognizer(cfg *config.Config, models *aimodel.Registry) (ocr.Recognizer, error) {
+	selected := ""
+	for _, id := range []string{"pp-ocrv6-tiny", "pp-ocrv6-small"} {
+		if models.Enabled(id) {
+			if selected != "" {
+				return nil, fmt.Errorf("only one OCR model can be enabled per process")
+			}
+			selected = id
+		}
+	}
+	if selected == "" {
+		return nil, nil
+	}
+	dir := filepath.Join(cfg.OCRModelsDir, selected)
+	recognizer, err := ocr.NewPP(ocr.PPConfig{ModelID: selected, DetectorPath: filepath.Join(dir, "det.onnx"), RecognizerPath: filepath.Join(dir, "rec.onnx"), RecognizerYAML: filepath.Join(dir, "rec.yml"), MaxSide: cfg.OCRMaxSide})
+	if err != nil {
+		return nil, fmt.Errorf("initialize %s: %w", selected, err)
+	}
+	if err := models.MarkLoaded(selected); err != nil {
+		_ = recognizer.Close()
+		return nil, err
+	}
+	return recognizer, nil
 }
 
 func newTranscriber(cfg *config.Config, models *aimodel.Registry) (asr.Transcriber, error) {
@@ -462,6 +507,9 @@ func (r *runtime) Close() {
 	}
 	if r.transcriber != nil {
 		_ = r.transcriber.Close()
+	}
+	if r.ocrRecognizer != nil {
+		_ = r.ocrRecognizer.Close()
 	}
 	if r.detector != nil {
 		_ = r.detector.Close()

@@ -13,6 +13,7 @@ import (
 	"github.com/gabrielmoura/NudeDetector/internal/inference"
 	"github.com/gabrielmoura/NudeDetector/internal/model"
 	"github.com/gabrielmoura/NudeDetector/internal/moderation"
+	"github.com/gabrielmoura/NudeDetector/internal/ocr"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -31,6 +32,7 @@ type Handler struct {
 	detector   *detector.Detector
 	models     *aimodel.Registry
 	asr        asr.Transcriber
+	ocr        ocr.Recognizer
 }
 
 func New(
@@ -47,6 +49,7 @@ func New(
 	bodyDetector *detector.Detector,
 	models *aimodel.Registry,
 	transcriber asr.Transcriber,
+	ocrRecognizer ocr.Recognizer,
 ) *Handler {
 	return &Handler{
 		cfg:        cfg,
@@ -63,5 +66,6 @@ func New(
 		detector:   bodyDetector,
 		models:     models,
 		asr:        transcriber,
+		ocr:        ocrRecognizer,
 	}
 }

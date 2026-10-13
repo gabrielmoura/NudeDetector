@@ -32,6 +32,8 @@ type Config struct {
 	// downloaded while serving inference requests.
 	ASRModelsDir string
 	ASRThreads   int
+	OCRModelsDir string
+	OCRMaxSide   int
 
 	// Download
 	DownloadTimeout       int64 // ms
@@ -88,6 +90,8 @@ func Load() (*Config, error) {
 		MaxAudioBytes:  getEnvInt64("MAX_AUDIO_BYTES", 100*1024*1024),
 		ASRModelsDir:   getEnv("ASR_MODELS_DIR", "./models/asr"),
 		ASRThreads:     getEnvInt("ASR_THREADS", 1),
+		OCRModelsDir:   getEnv("OCR_MODELS_DIR", "./models/ocr"),
+		OCRMaxSide:     getEnvInt("OCR_MAX_SIDE", 960),
 
 		DownloadTimeout:       getEnvInt64("DOWNLOAD_TIMEOUT", 30_000),
 		DialTimeout:           getEnvInt64("DIAL_TIMEOUT", 5_000),
@@ -135,6 +139,9 @@ func Load() (*Config, error) {
 	if c.ASRModelsDir == "" || c.ASRThreads < 1 {
 		return nil, fmt.Errorf("ASR_MODELS_DIR must not be empty and ASR_THREADS must be greater than zero")
 	}
+	if c.OCRModelsDir == "" || c.OCRMaxSide < 32 {
+		return nil, fmt.Errorf("OCR_MODELS_DIR must not be empty and OCR_MAX_SIDE must be at least 32")
+	}
 	if c.MaxImagePixels <= 0 {
 		return nil, fmt.Errorf("MAX_IMAGE_PIXELS must be greater than zero")
 	}
@@ -178,7 +185,7 @@ func validUnitInterval(value float64) bool {
 
 func validateEnvironmentSyntax() error {
 	integerKeys := []string{
-		"MAX_IMAGE_BYTES", "MAX_IMAGE_PIXELS", "MAX_WIDTH", "MAX_HEIGHT", "MAX_AUDIO_BYTES", "ASR_THREADS",
+		"MAX_IMAGE_BYTES", "MAX_IMAGE_PIXELS", "MAX_WIDTH", "MAX_HEIGHT", "MAX_AUDIO_BYTES", "ASR_THREADS", "OCR_MAX_SIDE",
 		"DOWNLOAD_TIMEOUT", "DIAL_TIMEOUT", "TLS_HANDSHAKE_TIMEOUT",
 		"RESPONSE_HEADER_TIMEOUT", "MAX_REDIRECTS", "INFERENCE_CONCURRENCY",
 		"MAX_PENDING_INFERENCES", "ONNX_INTRA_OP_THREADS", "ONNX_INTER_OP_THREADS",
