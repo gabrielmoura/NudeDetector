@@ -4,7 +4,9 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/gabrielmoura/NudeDetector/internal/observability"
 	"github.com/gabrielmoura/NudeDetector/internal/ocr"
 )
 
@@ -37,11 +39,19 @@ func (h *Handler) handleOCR(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusRequestEntityTooLarge, "image_too_large", "image exceeds limit")
 		return
 	}
+	const capability = "ocr"
+	modelID := enabledModelID(h.models, capability)
+	started := time.Now()
+	observability.AIInFlight.WithLabelValues(capability, modelID).Inc()
 	result, err := h.ocr.Recognize(r.Context(), data, ocr.Request{Language: r.FormValue("language"), ReturnBoxes: r.FormValue("return_boxes") == "true"})
+	observability.AIInFlight.WithLabelValues(capability, modelID).Dec()
 	if err != nil {
+		observability.AIErrorsTotal.WithLabelValues(capability, "inference").Inc()
 		writeErr(w, http.StatusUnprocessableEntity, "ocr_failed", err.Error())
 		return
 	}
+	observability.AIRequestsTotal.WithLabelValues(capability, result.Model).Inc()
+	observability.AIInferenceDuration.WithLabelValues(capability, result.Model).Observe(time.Since(started).Seconds())
 	if r.FormValue("return_boxes") != "true" {
 		result.Blocks = []ocr.Block{}
 	}

@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gabrielmoura/NudeDetector/internal/aimodel"
+	"github.com/gabrielmoura/NudeDetector/internal/observability"
 	"github.com/gabrielmoura/NudeDetector/internal/translation"
 )
 
@@ -46,6 +48,8 @@ func (h *Handler) handleTranslation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	results := make([]translation.Result, 0, len(texts))
+	const capability = "translation"
+	modelID := enabledModelID(h.models, capability)
 	for _, text := range texts {
 		if len([]rune(text)) > h.cfg.TranslationMaxCharacters {
 			writeErr(w, http.StatusRequestEntityTooLarge, "text_too_large", "translation text exceeds the configured limit")
@@ -55,11 +59,17 @@ func (h *Handler) handleTranslation(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusBadRequest, "invalid_request", "translation text must not be empty")
 			return
 		}
+		started := time.Now()
+		observability.AIInFlight.WithLabelValues(capability, modelID).Inc()
 		result, err := h.translator.Translate(r.Context(), translation.Request{Text: text, SourceLanguage: request.SourceLanguage, TargetLanguage: request.TargetLanguage})
+		observability.AIInFlight.WithLabelValues(capability, modelID).Dec()
 		if err != nil {
+			observability.AIErrorsTotal.WithLabelValues(capability, "inference").Inc()
 			writeErr(w, http.StatusUnprocessableEntity, "translation_failed", err.Error())
 			return
 		}
+		observability.AIRequestsTotal.WithLabelValues(capability, result.Model).Inc()
+		observability.AIInferenceDuration.WithLabelValues(capability, result.Model).Observe(time.Since(started).Seconds())
 		results = append(results, result)
 	}
 	if request.Text != "" {
@@ -67,6 +77,23 @@ func (h *Handler) handleTranslation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"translations": results})
+}
+
+func enabledModelID(registry *aimodel.Registry, capability string) string {
+	if registry == nil {
+		return "unknown"
+	}
+	for _, model := range registry.List() {
+		if !model.Enabled {
+			continue
+		}
+		for _, item := range model.Capabilities {
+			if string(item) == capability {
+				return model.ID
+			}
+		}
+	}
+	return "unknown"
 }
 
 func supportsTranslation(capabilities []aimodel.Capability) bool {

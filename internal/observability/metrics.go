@@ -43,10 +43,14 @@ var (
 	PredictionsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "predictions_total", Help: "Top class",
 	}, []string{"top_class"})
-	CacheHits   = prometheus.NewCounter(prometheus.CounterOpts{Name: "cache_hits_total"})
-	CacheMisses = prometheus.NewCounter(prometheus.CounterOpts{Name: "cache_misses_total"})
-	ErrorsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "errors_total"}, []string{"type"})
-	ModelInfo   = prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "model_info"}, []string{"name", "version"})
+	CacheHits           = prometheus.NewCounter(prometheus.CounterOpts{Name: "cache_hits_total"})
+	CacheMisses         = prometheus.NewCounter(prometheus.CounterOpts{Name: "cache_misses_total"})
+	ErrorsTotal         = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "errors_total"}, []string{"type"})
+	ModelInfo           = prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "model_info"}, []string{"name", "version"})
+	AIRequestsTotal     = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "ai_requests_total", Help: "AI requests by capability and model"}, []string{"capability", "model"})
+	AIInferenceDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "ai_inference_duration_seconds", Help: "AI inference duration by capability and model", Buckets: []float64{0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 15, 60}}, []string{"capability", "model"})
+	AIErrorsTotal       = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "ai_errors_total", Help: "AI errors by capability and category"}, []string{"capability", "category"})
+	AIInFlight          = prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "ai_inference_in_flight", Help: "AI inferences executing by capability and model"}, []string{"capability", "model"})
 )
 
 func Register(reg prometheus.Registerer) {
@@ -66,5 +70,9 @@ func Register(reg prometheus.Registerer) {
 		CacheMisses,
 		ErrorsTotal,
 		ModelInfo,
+		AIRequestsTotal,
+		AIInferenceDuration,
+		AIErrorsTotal,
+		AIInFlight,
 	)
 }

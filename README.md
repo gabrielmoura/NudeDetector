@@ -240,6 +240,9 @@ curl -sS http://localhost:8080/metrics  # Prometheus
 ```
 
 `/ready` só retorna `ready: true` após carregar, validar e aquecer o modelo.
+Além das métricas de moderação existentes, as capacidades novas expõem
+`ai_requests_total`, `ai_inference_duration_seconds`, `ai_errors_total` e
+`ai_inference_in_flight`, rotuladas somente por capacidade e ID de modelo.
 
 ## Configuração
 

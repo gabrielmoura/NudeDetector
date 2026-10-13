@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gabrielmoura/NudeDetector/internal/asr"
+	"github.com/gabrielmoura/NudeDetector/internal/observability"
 )
 
 var errASRUnavailable = errors.New("ASR model is unavailable")
@@ -52,11 +53,16 @@ func (h *Handler) handleTranscription(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	start := time.Now()
+	const capability = "asr"
+	modelID := enabledModelID(h.models, capability)
+	observability.AIInFlight.WithLabelValues(capability, modelID).Inc()
 	result, err := h.asr.Transcribe(r.Context(), audio, asr.Request{
 		Language:   r.FormValue("language"),
 		Timestamps: timestamps,
 	})
+	observability.AIInFlight.WithLabelValues(capability, modelID).Dec()
 	if err != nil {
+		observability.AIErrorsTotal.WithLabelValues(capability, "inference").Inc()
 		if errors.Is(err, r.Context().Err()) {
 			writeErr(w, http.StatusRequestTimeout, "transcription_cancelled", "transcription cancelled")
 			return
@@ -64,6 +70,8 @@ func (h *Handler) handleTranscription(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "transcription_failed", err.Error())
 		return
 	}
+	observability.AIRequestsTotal.WithLabelValues(capability, result.Model).Inc()
+	observability.AIInferenceDuration.WithLabelValues(capability, result.Model).Observe(time.Since(start).Seconds())
 	if result.ProcessingTimeMS == 0 {
 		result.ProcessingTimeMS = time.Since(start).Milliseconds()
 	}
