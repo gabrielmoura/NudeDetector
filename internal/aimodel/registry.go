@@ -107,6 +107,16 @@ func (r *Registry) MarkLoaded(id string) error {
 	return nil
 }
 
+// SetPaths replaces the local artifacts used to determine one model's
+// installation state. Call it during composition, before serving requests.
+func (r *Registry) SetPaths(id string, paths []string) error {
+	if _, ok := r.descriptors[id]; !ok {
+		return fmt.Errorf("unknown model %q", id)
+	}
+	r.paths[id] = append([]string(nil), paths...)
+	return nil
+}
+
 func (r *Registry) List() []Model {
 	ids := make([]string, 0, len(r.descriptors))
 	for id := range r.descriptors {

@@ -93,6 +93,7 @@ func newRootCommand() *cobra.Command {
 		newASRCommand(&options),
 		newOCRCommand(&options),
 		newTranslateCommand(&options),
+		newModelsCommand(),
 		newScanCommand(&options),
 		newVersionCommand(),
 	)
@@ -229,6 +230,9 @@ func newRuntime(options runtimeOptions, loadDetector bool) (*runtime, error) {
 	}
 	models, err := aimodel.New(cfg.ClassifierModelPath, cfg.DetectorModelPath, enabledModels)
 	if err != nil {
+		return nil, err
+	}
+	if err := configureModelPaths(models, cfg); err != nil {
 		return nil, err
 	}
 	if err := validateImplementedModels(models); err != nil {
@@ -416,6 +420,29 @@ func newRuntime(options runtimeOptions, loadDetector bool) (*runtime, error) {
 		translator:     translator,
 		ortInitialized: ortInitialized,
 	}, nil
+}
+
+func configureModelPaths(models *aimodel.Registry, cfg *config.Config) error {
+	for _, id := range []string{"whisper-tiny", "whisper-base", "whisper-small"} {
+		prefix := strings.TrimPrefix(id, "whisper-")
+		dir := filepath.Join(cfg.ASRModelsDir, id)
+		if err := models.SetPaths(id, []string{filepath.Join(dir, prefix+"-encoder.int8.onnx"), filepath.Join(dir, prefix+"-decoder.int8.onnx"), filepath.Join(dir, prefix+"-tokens.txt")}); err != nil {
+			return err
+		}
+	}
+	for _, id := range []string{"pp-ocrv6-tiny", "pp-ocrv6-small"} {
+		dir := filepath.Join(cfg.OCRModelsDir, id)
+		if err := models.SetPaths(id, []string{filepath.Join(dir, "det.onnx"), filepath.Join(dir, "rec.onnx"), filepath.Join(dir, "rec.yml")}); err != nil {
+			return err
+		}
+	}
+	for _, id := range []string{"opus-mt-en-romance", "opus-mt-romance-en"} {
+		dir := filepath.Join(cfg.TranslationModelsDir, id)
+		if err := models.SetPaths(id, []string{filepath.Join(dir, "encoder.onnx"), filepath.Join(dir, "decoder.onnx"), filepath.Join(dir, "tokenizer.json"), filepath.Join(dir, "vocab.json")}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func validateImplementedModels(models *aimodel.Registry) error {
