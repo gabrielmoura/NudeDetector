@@ -33,6 +33,7 @@ type Config struct {
 	ASRModelsDir               string
 	ASRThreads                 int
 	ASRMaxDurationSeconds      int
+	ASRChunkSeconds            int
 	OCRModelsDir               string
 	OCRMaxSide                 int
 	TranslationModelsDir       string
@@ -97,6 +98,7 @@ func Load() (*Config, error) {
 		ASRModelsDir:               getEnv("ASR_MODELS_DIR", "./models/asr"),
 		ASRThreads:                 getEnvInt("ASR_THREADS", 1),
 		ASRMaxDurationSeconds:      getEnvInt("ASR_MAX_DURATION_SECONDS", 7_200),
+		ASRChunkSeconds:            getEnvInt("ASR_CHUNK_SECONDS", 30),
 		OCRModelsDir:               getEnv("OCR_MODELS_DIR", "./models/ocr"),
 		OCRMaxSide:                 getEnvInt("OCR_MAX_SIDE", 960),
 		TranslationModelsDir:       getEnv("TRANSLATION_MODELS_DIR", "./models/translation"),
@@ -148,7 +150,7 @@ func Load() (*Config, error) {
 	if c.MaxAudioBytes <= 0 {
 		return nil, fmt.Errorf("MAX_AUDIO_BYTES must be greater than zero")
 	}
-	if c.ASRModelsDir == "" || c.ASRThreads < 1 || c.ASRMaxDurationSeconds < 1 {
+	if c.ASRModelsDir == "" || c.ASRThreads < 1 || c.ASRMaxDurationSeconds < 1 || c.ASRChunkSeconds < 1 {
 		return nil, fmt.Errorf("ASR model directory, thread count, and duration limit must be valid")
 	}
 	if c.OCRModelsDir == "" || c.OCRMaxSide < 32 {

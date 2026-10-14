@@ -13,18 +13,20 @@ import (
 )
 
 type WhisperConfig struct {
-	ModelID     string
-	EncoderPath string
-	DecoderPath string
-	TokensPath  string
-	Threads     int
+	ModelID      string
+	EncoderPath  string
+	DecoderPath  string
+	TokensPath   string
+	Threads      int
+	ChunkSeconds int
 }
 
 type Whisper struct {
-	modelID    string
-	recognizer *sherpa.OfflineRecognizer
-	sem        chan struct{}
-	closeOnce  sync.Once
+	modelID      string
+	recognizer   *sherpa.OfflineRecognizer
+	sem          chan struct{}
+	chunkSamples int
+	closeOnce    sync.Once
 }
 
 func NewWhisper(config WhisperConfig) (*Whisper, error) {
@@ -43,8 +45,8 @@ func NewWhisper(config WhisperConfig) (*Whisper, error) {
 			return nil, fmt.Errorf("stat Whisper %s: %w", name, err)
 		}
 	}
-	if config.Threads < 1 {
-		return nil, errors.New("ASR thread count must be greater than zero")
+	if config.Threads < 1 || config.ChunkSeconds < 1 {
+		return nil, errors.New("ASR thread count and chunk duration must be greater than zero")
 	}
 
 	recognizer := sherpa.NewOfflineRecognizer(&sherpa.OfflineRecognizerConfig{
@@ -69,9 +71,10 @@ func NewWhisper(config WhisperConfig) (*Whisper, error) {
 		return nil, errors.New("create Whisper recognizer")
 	}
 	return &Whisper{
-		modelID:    config.ModelID,
-		recognizer: recognizer,
-		sem:        make(chan struct{}, 1),
+		modelID:      config.ModelID,
+		recognizer:   recognizer,
+		sem:          make(chan struct{}, 1),
+		chunkSamples: 16_000 * config.ChunkSeconds,
 	}, nil
 }
 
@@ -90,41 +93,56 @@ func (w *Whisper) Transcribe(ctx context.Context, audio Audio, request Request) 
 	}
 
 	start := time.Now()
-	stream := sherpa.NewOfflineStream(w.recognizer)
-	if stream == nil {
-		return Result{}, errors.New("create Whisper stream")
+	texts := make([]string, 0, (len(audio.Samples)+w.chunkSamples-1)/w.chunkSamples)
+	var language string
+	var tokenTimestamps []float32
+	for startIndex := 0; startIndex < len(audio.Samples); startIndex += w.chunkSamples {
+		endIndex := min(startIndex+w.chunkSamples, len(audio.Samples))
+		recognized, err := w.transcribeChunk(audio.SampleRate, audio.Samples[startIndex:endIndex], request.Language)
+		if err != nil {
+			return Result{}, err
+		}
+		if recognized.Lang != "" {
+			language = recognized.Lang
+		}
+		texts = append(texts, recognized.Text)
+		if request.Timestamps && len(recognized.Timestamps) > 0 {
+			offset := float32(startIndex) / float32(audio.SampleRate)
+			for _, timestamp := range recognized.Timestamps {
+				tokenTimestamps = append(tokenTimestamps, timestamp+offset)
+			}
+		}
+		if err := ctx.Err(); err != nil {
+			return Result{}, err
+		}
 	}
-	defer sherpa.DeleteOfflineStream(stream)
-	if language := normalizeLanguage(request.Language); language != "" {
-		stream.SetOption("language", language)
-	}
-	stream.AcceptWaveform(audio.SampleRate, audio.Samples)
-	w.recognizer.Decode(stream)
-	if err := ctx.Err(); err != nil {
-		return Result{}, err
-	}
-	recognized := stream.GetResult()
 	metadata := map[string]any{
 		"engine":                    "sherpa-onnx",
 		"segment_timestamps":        false,
-		"token_timestamps_returned": len(recognized.Timestamps) > 0,
+		"chunk_count":               len(texts),
+		"token_timestamps_returned": len(tokenTimestamps) > 0,
 	}
-	if request.Timestamps && len(recognized.Timestamps) > 0 {
-		metadata["token_timestamps_seconds"] = recognized.Timestamps
+	if request.Timestamps && len(tokenTimestamps) > 0 {
+		metadata["token_timestamps_seconds"] = tokenTimestamps
 	}
-	language := recognized.Lang
 	if language == "" {
 		language = normalizeLanguage(request.Language)
 	}
-	return Result{
-		Text:             recognized.Text,
-		Language:         language,
-		Model:            w.modelID,
-		DurationSeconds:  float64(len(audio.Samples)) / float64(audio.SampleRate),
-		ProcessingTimeMS: time.Since(start).Milliseconds(),
-		Segments:         []Segment{},
-		Metadata:         metadata,
-	}, nil
+	return Result{Text: reconcileChunkText(texts), Language: language, Model: w.modelID, DurationSeconds: float64(len(audio.Samples)) / float64(audio.SampleRate), ProcessingTimeMS: time.Since(start).Milliseconds(), Segments: []Segment{}, Metadata: metadata}, nil
+}
+
+func (w *Whisper) transcribeChunk(sampleRate int, samples []float32, language string) (*sherpa.OfflineRecognizerResult, error) {
+	stream := sherpa.NewOfflineStream(w.recognizer)
+	if stream == nil {
+		return nil, errors.New("create Whisper stream")
+	}
+	defer sherpa.DeleteOfflineStream(stream)
+	if language := normalizeLanguage(language); language != "" {
+		stream.SetOption("language", language)
+	}
+	stream.AcceptWaveform(sampleRate, samples)
+	w.recognizer.Decode(stream)
+	return stream.GetResult(), nil
 }
 
 func (w *Whisper) Close() error {
@@ -143,4 +161,30 @@ func normalizeLanguage(language string) string {
 		return language[:index]
 	}
 	return language
+}
+
+func reconcileChunkText(chunks []string) string {
+	result := ""
+	for _, chunk := range chunks {
+		chunk = strings.TrimSpace(chunk)
+		if chunk == "" {
+			continue
+		}
+		if result == "" {
+			result = chunk
+			continue
+		}
+		resultWords := strings.Fields(result)
+		chunkWords := strings.Fields(chunk)
+		maximum := min(12, len(resultWords), len(chunkWords))
+		overlap := 0
+		for size := maximum; size > 0; size-- {
+			if strings.EqualFold(strings.Join(resultWords[len(resultWords)-size:], " "), strings.Join(chunkWords[:size], " ")) {
+				overlap = size
+				break
+			}
+		}
+		result = strings.TrimSpace(result + " " + strings.Join(chunkWords[overlap:], " "))
+	}
+	return result
 }

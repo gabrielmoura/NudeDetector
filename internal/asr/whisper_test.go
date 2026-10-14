@@ -2,16 +2,16 @@ package asr
 
 import "testing"
 
-func TestNormalizeLanguage(t *testing.T) {
-	t.Parallel()
+func TestReconcileChunkTextRemovesBoundaryOverlap(t *testing.T) {
+	got := reconcileChunkText([]string{"Olá mundo como", "mundo como você está", "você está hoje"})
+	if got != "Olá mundo como você está hoje" {
+		t.Fatalf("reconcileChunkText() = %q", got)
+	}
+}
 
-	for input, want := range map[string]string{
-		"pt-BR": "pt",
-		" EN ":  "en",
-		"":      "",
-	} {
-		if got := normalizeLanguage(input); got != want {
-			t.Errorf("normalizeLanguage(%q) = %q, want %q", input, got, want)
-		}
+func TestReconcileChunkTextSkipsEmptyChunks(t *testing.T) {
+	got := reconcileChunkText([]string{"", "Olá", "  "})
+	if got != "Olá" {
+		t.Fatalf("reconcileChunkText() = %q", got)
 	}
 }

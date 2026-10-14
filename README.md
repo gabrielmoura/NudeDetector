@@ -90,6 +90,9 @@ ficam em `metadata.token_timestamps_seconds` quando solicitados.
 WAV PCM/float usa o decodificador embutido. MP3, OGG/Opus, M4A/AAC e FLAC são
 normalizados por FFmpeg, chamado sem shell, para PCM mono a 16 kHz. Defina
 `ASR_MAX_DURATION_SECONDS` (padrão: 7200) para limitar a duração aceita.
+`ASR_CHUNK_SECONDS` (padrão: 30) limita a duração de cada inferência Whisper;
+os textos adjacentes são reconciliados para remover sobreposição literal nas
+fronteiras dos blocos.
 
 ### OCR local (PP-OCRv6)
 

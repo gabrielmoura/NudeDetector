@@ -557,11 +557,12 @@ func newTranscriber(cfg *config.Config, models *aimodel.Registry) (asr.Transcrib
 	modelDir := filepath.Join(cfg.ASRModelsDir, selected)
 	filePrefix := strings.TrimPrefix(selected, "whisper-")
 	transcriber, err := asr.NewWhisper(asr.WhisperConfig{
-		ModelID:     selected,
-		EncoderPath: filepath.Join(modelDir, filePrefix+"-encoder.int8.onnx"),
-		DecoderPath: filepath.Join(modelDir, filePrefix+"-decoder.int8.onnx"),
-		TokensPath:  filepath.Join(modelDir, filePrefix+"-tokens.txt"),
-		Threads:     cfg.ASRThreads,
+		ModelID:      selected,
+		EncoderPath:  filepath.Join(modelDir, filePrefix+"-encoder.int8.onnx"),
+		DecoderPath:  filepath.Join(modelDir, filePrefix+"-decoder.int8.onnx"),
+		TokensPath:   filepath.Join(modelDir, filePrefix+"-tokens.txt"),
+		Threads:      cfg.ASRThreads,
+		ChunkSeconds: cfg.ASRChunkSeconds,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("initialize %s: %w", selected, err)
