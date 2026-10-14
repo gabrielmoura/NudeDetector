@@ -136,7 +136,11 @@ e renomeação atômica. Ele não é acionado durante uma requisição ou no sta
 ./bin/nude-detector models install opus-mt-en-romance
 ./bin/nude-detector models verify opus-mt-en-romance
 ./bin/nude-detector models install opus-mt-romance-en
+./bin/nude-detector models remove opus-mt-en-romance
 ```
+
+`verify` recalcula o SHA-256 para modelos com manifesto instalado; `remove`
+remove somente os caminhos de artefatos explicitamente listados no manifesto.
 
 Use a revisão fixa `9d2ba69ac80c8e8453c3d9a1e2323a0e7b8ca3cd` do
 [Xenova/opus-mt-en-ROMANCE](https://huggingface.co/Xenova/opus-mt-en-ROMANCE)

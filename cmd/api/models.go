@@ -33,6 +33,15 @@ func newModelsCommand() *cobra.Command {
 			return json.NewEncoder(command.OutOrStdout()).Encode(model)
 		}},
 		&cobra.Command{Use: "verify MODEL", Short: "Verifies that every required local artifact is present", Args: cobra.ExactArgs(1), RunE: func(command *cobra.Command, arguments []string) error {
+			cfg, err := config.Load()
+			if err != nil {
+				return err
+			}
+			if artifacts, manifestErr := installArtifacts(arguments[0], cfg); manifestErr == nil {
+				if err := modelstore.Verify(artifacts); err != nil {
+					return fmt.Errorf("verify %s: %w", arguments[0], err)
+				}
+			}
 			registry, err := configuredModelRegistry()
 			if err != nil {
 				return err
@@ -59,6 +68,21 @@ func newModelsCommand() *cobra.Command {
 				return fmt.Errorf("install %s: %w", arguments[0], err)
 			}
 			_, err = fmt.Fprintln(command.OutOrStdout(), arguments[0]+" installed")
+			return err
+		}},
+		&cobra.Command{Use: "remove MODEL", Short: "Removes the exact local artifacts of a managed model", Args: cobra.ExactArgs(1), RunE: func(command *cobra.Command, arguments []string) error {
+			cfg, err := config.Load()
+			if err != nil {
+				return err
+			}
+			artifacts, err := installArtifacts(arguments[0], cfg)
+			if err != nil {
+				return err
+			}
+			if err := modelstore.Remove(artifacts); err != nil {
+				return fmt.Errorf("remove %s: %w", arguments[0], err)
+			}
+			_, err = fmt.Fprintln(command.OutOrStdout(), arguments[0]+" removed")
 			return err
 		}},
 	)

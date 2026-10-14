@@ -3,6 +3,7 @@ package modelstore
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,6 +27,36 @@ func Install(ctx context.Context, artifacts []Artifact) error {
 	for _, artifact := range artifacts {
 		if err := installOne(ctx, artifact); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// Verify checks that every artifact exists and matches its pinned checksum.
+func Verify(artifacts []Artifact) error {
+	for _, artifact := range artifacts {
+		if artifact.Path == "" || artifact.SHA256 == "" {
+			return errors.New("model artifact path and checksum are required")
+		}
+		actual, err := checksumFile(artifact.Path)
+		if err != nil {
+			return fmt.Errorf("verify model artifact %q: %w", artifact.Path, err)
+		}
+		if !strings.EqualFold(actual, artifact.SHA256) {
+			return fmt.Errorf("model artifact checksum mismatch for %q: got %s", artifact.Path, actual)
+		}
+	}
+	return nil
+}
+
+// Remove removes only the exact artifact paths described by the manifest.
+func Remove(artifacts []Artifact) error {
+	for _, artifact := range artifacts {
+		if artifact.Path == "" {
+			return errors.New("model artifact path is required")
+		}
+		if err := os.Remove(artifact.Path); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("remove model artifact %q: %w", artifact.Path, err)
 		}
 	}
 	return nil
