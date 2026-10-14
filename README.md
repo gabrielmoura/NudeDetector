@@ -335,6 +335,21 @@ make check
 make clean
 ```
 
+Os modelos opcionais não são incluídos na imagem. Monte um volume gravável em
+`/app/models` para instalá-los uma única vez e selecione apenas o necessário
+ao iniciar o servidor:
+
+```bash
+docker run --rm -p 8080:8080 \
+  -v nude-detector-models:/app/models \
+  nude-detector:latest models install whisper-base
+
+docker run --rm -p 8080:8080 \
+  -v nude-detector-models:/app/models \
+  -e ENABLED_MODELS=whisper-base \
+  nude-detector:latest serve
+```
+
 O Dockerfile é multi-stage, instala apenas o runtime ONNX necessário na imagem
 final, executa como usuário não-root e inclui labels OCI de versão, commit,
 data de build e origem. `make all` roda verificações e compila.

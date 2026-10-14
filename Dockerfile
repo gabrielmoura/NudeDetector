@@ -65,8 +65,14 @@ COPY --from=builder /out/model.onnx /app/models/model.onnx
 COPY --from=builder /out/320n.onnx /app/models/320n.onnx
 COPY models/model.json /app/models/model.json
 
+RUN mkdir -p /app/models/asr /app/models/ocr /app/models/translation \
+	&& chown -R 1000:1000 /app
+
 ENV ONNXRUNTIME_SHARED_LIBRARY_PATH=/app/lib/libonnxruntime.so.1.22.0 \
-    LD_LIBRARY_PATH=/app/lib/sherpa
+    LD_LIBRARY_PATH=/app/lib/sherpa \
+    ASR_MODELS_DIR=/app/models/asr \
+    OCR_MODELS_DIR=/app/models/ocr \
+    TRANSLATION_MODELS_DIR=/app/models/translation
 
 USER 1000:1000
 EXPOSE 8080
