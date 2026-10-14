@@ -16,6 +16,7 @@ func TestLoadRejectsInvalidEnvironmentSyntax(t *testing.T) {
 		{name: "integer", key: "MAX_IMAGE_BYTES", value: "large", want: "must be an integer"},
 		{name: "float", key: "PORN_THRESHOLD", value: "high", want: "must be a number"},
 		{name: "boolean", key: "CACHE_ENABLED", value: "sometimes", want: "must be boolean"},
+		{name: "model auto install", key: "MODEL_AUTO_INSTALL", value: "sometimes", want: "must be boolean"},
 	}
 
 	for _, test := range tests {
@@ -90,17 +91,33 @@ func TestLoadUsesSafeDefaults(t *testing.T) {
 	if got := strings.Join(c.EnabledModels, ","); got != "nsfw-classifier" {
 		t.Fatalf("EnabledModels = %q, want nsfw-classifier", got)
 	}
+	if c.ModelAutoInstall {
+		t.Fatal("ModelAutoInstall = true, want false by default")
+	}
+}
+
+func TestLoadEnablesStartupModelInstallOnlyWhenRequested(t *testing.T) {
+	clearConfigEnvironment(t)
+	t.Setenv("MODEL_AUTO_INSTALL", "true")
+
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if !c.ModelAutoInstall {
+		t.Fatal("ModelAutoInstall = false, want true")
+	}
 }
 
 func clearConfigEnvironment(t *testing.T) {
 	t.Helper()
 	keys := []string{
 		"PORN_REVIEW_THRESHOLD", "PORN_THRESHOLD", "MAX_IMAGE_BYTES", "MAX_IMAGE_PIXELS",
-		"MAX_WIDTH", "MAX_HEIGHT", "MAX_AUDIO_BYTES", "ASR_MODELS_DIR", "ASR_THREADS", "DOWNLOAD_TIMEOUT", "DIAL_TIMEOUT",
+		"MAX_WIDTH", "MAX_HEIGHT", "MAX_AUDIO_BYTES", "ASR_MODELS_DIR", "ASR_THREADS", "ASR_CHUNK_SECONDS", "DOWNLOAD_TIMEOUT", "DIAL_TIMEOUT",
 		"TLS_HANDSHAKE_TIMEOUT", "RESPONSE_HEADER_TIMEOUT", "MAX_REDIRECTS",
 		"INFERENCE_CONCURRENCY", "MAX_PENDING_INFERENCES", "ONNX_INTRA_OP_THREADS",
 		"ONNX_INTER_OP_THREADS", "CACHE_MAX_ENTRIES", "CACHE_TTL",
-		"CLASSIFY_HENTAI_AS_PORNOGRAPHY", "CACHE_ENABLED", "DETECTOR_ENABLED", "PPROF_ENABLED",
+		"CLASSIFY_HENTAI_AS_PORNOGRAPHY", "CACHE_ENABLED", "DETECTOR_ENABLED", "MODEL_AUTO_INSTALL", "PPROF_ENABLED",
 	}
 	for _, key := range keys {
 		if value, ok := os.LookupEnv(key); ok {

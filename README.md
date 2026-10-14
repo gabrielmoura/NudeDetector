@@ -303,7 +303,7 @@ As variáveis principais são: `HTTP_ADDR`, `CLASSIFIER_MODEL_PATH`,
 `DETECTOR_ENABLED`, `DETECTOR_MODEL_PATH`, `DETECTOR_MODEL_URL`,
 `DETECTOR_MODEL_SHA256`, `DETECTOR_SCORE_MINIMUM`, `DETECTOR_IOU_THRESHOLD`,
 `ENABLED_MODELS`, `MAX_AUDIO_BYTES`, `ASR_MODELS_DIR`, `ASR_THREADS`,
-`ASR_MAX_DURATION_SECONDS`,
+`ASR_MAX_DURATION_SECONDS`, `ASR_CHUNK_SECONDS`, `MODEL_AUTO_INSTALL`,
 `OCR_MODELS_DIR`, `OCR_MAX_SIDE`, `TRANSLATION_MODELS_DIR`,
 `TRANSLATION_MAX_INPUT_TOKENS`, `TRANSLATION_MAX_OUTPUT_TOKENS`,
 `TRANSLATION_MAX_CHARACTERS`, `TRANSLATION_MAX_BATCH` e `PPROF_ENABLED`. Valores de threshold são números entre
@@ -315,6 +315,13 @@ processo não baixa nem mantém a sessão NudeNet até que
 `nudenet-detector` seja selecionado. A flag `serve --models` substitui a
 variável de ambiente. Consulte `GET /v1/models` e `GET /v1/models/{id}` para
 o catálogo, estado de instalação e seleção corrente.
+
+`MODEL_AUTO_INSTALL` é desabilitado por padrão. Quando habilitado, o modo
+`serve` instala somente os modelos opcionais selecionados antes de abrir a
+porta HTTP, com URLs fixadas, limite de tamanho, SHA-256 e renomeação atômica.
+Ele nunca baixa modelos em uma requisição de inferência. A imagem Docker o
+habilita para que `ENABLED_MODELS` seja suficiente para instalar e carregar o
+modelo escolhido no volume de modelos.
 
 ## Erros e segurança
 
@@ -337,19 +344,23 @@ make clean
 ```
 
 Os modelos opcionais não são incluídos na imagem. Monte um volume gravável em
-`/app/models` para instalá-los uma única vez e selecione apenas o necessário
-ao iniciar o servidor:
+`/app/models` e informe o modelo pelo ambiente. No primeiro início em que o
+artefato não existir, o próprio processo o baixa, verifica e instala antes de
+aceitar requisições; os próximos inícios reutilizam o volume:
 
 ```bash
-docker run --rm -p 8080:8080 \
-  -v nude-detector-models:/app/models \
-  nude-detector:latest models install whisper-base
-
 docker run --rm -p 8080:8080 \
   -v nude-detector-models:/app/models \
   -e ENABLED_MODELS=whisper-base \
   nude-detector:latest serve
 ```
+
+Para OCR ou tradução, substitua o valor por `pp-ocrv6-tiny`,
+`opus-mt-en-romance` ou `m2m100-418m`. É possível habilitar modelos de
+capacidades diferentes com IDs separados por vírgula; não habilite dois
+Whisper, dois PP-OCR nem dois backends de tradução no mesmo processo. Para
+desativar esse comportamento da imagem, passe `-e MODEL_AUTO_INSTALL=false` e
+instale os artefatos antecipadamente com `models install MODEL`.
 
 O Dockerfile é multi-stage, instala apenas o runtime ONNX necessário na imagem
 final, executa como usuário não-root e inclui labels OCI de versão, commit,

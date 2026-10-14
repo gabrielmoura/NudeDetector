@@ -88,7 +88,7 @@ func newScanCommand(options *runtimeOptions) *cobra.Command {
 			}
 			defer closeJSON()
 
-			runtime, err := newRuntime(*options, true)
+			runtime, err := newRuntime(*options, true, false)
 			if err != nil {
 				return err
 			}

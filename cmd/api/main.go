@@ -76,7 +76,7 @@ func newRootCommand() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(command *cobra.Command, arguments []string) error {
-			runtime, err := newRuntime(options, false)
+			runtime, err := newRuntime(options, false, true)
 			if err != nil {
 				return err
 			}
@@ -105,7 +105,7 @@ func newServeCommand(options *runtimeOptions) *cobra.Command {
 		Use:   "serve",
 		Short: "Starts the HTTP API",
 		RunE: func(command *cobra.Command, arguments []string) error {
-			runtime, err := newRuntime(*options, false)
+			runtime, err := newRuntime(*options, false, true)
 			if err != nil {
 				return err
 			}
@@ -130,7 +130,7 @@ func newClassifyCommand(options *runtimeOptions) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("read input: %w", err)
 			}
-			runtime, err := newRuntime(*options, false)
+			runtime, err := newRuntime(*options, false, false)
 			if err != nil {
 				return err
 			}
@@ -162,7 +162,7 @@ func newExportCommand(options *runtimeOptions) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("read input: %w", err)
 			}
-			runtime, err := newRuntime(*options, true)
+			runtime, err := newRuntime(*options, true, false)
 			if err != nil {
 				return err
 			}
@@ -205,7 +205,7 @@ func newVersionCommand() *cobra.Command {
 	}
 }
 
-func newRuntime(options runtimeOptions, loadDetector bool) (*runtime, error) {
+func newRuntime(options runtimeOptions, loadDetector, installSelectedModels bool) (*runtime, error) {
 	log := observability.Setup()
 	cfg, err := config.Load()
 	if err != nil {
@@ -237,6 +237,11 @@ func newRuntime(options runtimeOptions, loadDetector bool) (*runtime, error) {
 	}
 	if err := validateImplementedModels(models); err != nil {
 		return nil, err
+	}
+	if installSelectedModels && cfg.ModelAutoInstall {
+		if err := installSelectedModelArtifacts(context.Background(), cfg, enabledModels, log); err != nil {
+			return nil, err
+		}
 	}
 	needsONNXRuntime := models.Enabled(aimodel.NSFWClassifierID) || models.Enabled(aimodel.NudeNetDetectorID) || models.Enabled("pp-ocrv6-tiny") || models.Enabled("pp-ocrv6-small") || models.Enabled("opus-mt-en-romance") || models.Enabled("opus-mt-romance-en") || models.Enabled("m2m100-418m")
 	var runtimeLibrary string

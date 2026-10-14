@@ -30,6 +30,13 @@ registro é a fonte única de metadados estáticos e o estado de instalação é
 calculado separadamente. Isto evita download, consumo de RAM e inicialização
 de bibliotecas nativas para modelos que a instância não vai servir.
 
+No host, os artefatos opcionais são instalados explicitamente com `models
+install`. A imagem Docker ativa `MODEL_AUTO_INSTALL=true`: durante `serve`, o
+processo resolve somente os manifests dos IDs selecionados, verifica SHA-256 e
+instala de forma atômica no volume de modelos antes de carregar qualquer
+sessão. Esse fluxo não existe em handlers HTTP nem nos comandos de inferência
+da CLI.
+
 O detector de detalhes continua opcional: selecionar `nudenet-detector` sem
 `DETECTOR_ENABLED=true` é uma configuração inválida, e selecionar
 `nudenet-detector` habilita a sua carga sem mudar o comportamento do

@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 
 	"github.com/gabrielmoura/NudeDetector/internal/aimodel"
@@ -10,6 +12,17 @@ import (
 	"github.com/gabrielmoura/NudeDetector/internal/modelstore"
 	"github.com/spf13/cobra"
 )
+
+var startupInstallableModels = map[string]struct{}{
+	"whisper-tiny":       {},
+	"whisper-base":       {},
+	"whisper-small":      {},
+	"pp-ocrv6-tiny":      {},
+	"pp-ocrv6-small":     {},
+	"opus-mt-en-romance": {},
+	"opus-mt-romance-en": {},
+	"m2m100-418m":        {},
+}
 
 func newModelsCommand() *cobra.Command {
 	command := &cobra.Command{Use: "models", Short: "Lists and verifies local AI model artifacts"}
@@ -141,6 +154,30 @@ func installArtifacts(modelID string, cfg *config.Config) ([]modelstore.Artifact
 		artifacts = append(artifacts, modelstore.Artifact{Path: filepath.Join(destination, target), URL: "https://huggingface.co/" + repository + "/resolve/" + revision + "/" + file[0], SHA256: file[1], MaxBytes: maxBytes})
 	}
 	return artifacts, nil
+}
+
+// installSelectedModelArtifacts installs optional models selected for a server
+// process before sessions are created. It is never called by request handlers.
+func installSelectedModelArtifacts(
+	ctx context.Context,
+	cfg *config.Config,
+	modelIDs []string,
+	log *slog.Logger,
+) error {
+	for _, modelID := range modelIDs {
+		if _, ok := startupInstallableModels[modelID]; !ok {
+			continue
+		}
+		artifacts, err := installArtifacts(modelID, cfg)
+		if err != nil {
+			return fmt.Errorf("resolve install manifest for %s: %w", modelID, err)
+		}
+		log.Info("model_auto_installing", slog.String("model", modelID))
+		if err := modelstore.Install(ctx, artifacts); err != nil {
+			return fmt.Errorf("install %s at startup: %w", modelID, err)
+		}
+	}
+	return nil
 }
 
 func ppOCRTinyArtifacts(cfg *config.Config) ([]modelstore.Artifact, error) {

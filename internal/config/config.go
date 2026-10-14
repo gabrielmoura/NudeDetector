@@ -28,8 +28,9 @@ type Config struct {
 	MaxHeight      int
 	MaxAudioBytes  int64
 
-	// ASR models are installed manually below ASRModelsDir. They are never
-	// downloaded while serving inference requests.
+	// ModelAutoInstall permits startup-time installation of selected optional
+	// models. It never permits downloads from an inference request.
+	ModelAutoInstall           bool
 	ASRModelsDir               string
 	ASRThreads                 int
 	ASRMaxDurationSeconds      int
@@ -95,6 +96,7 @@ func Load() (*Config, error) {
 		MaxWidth:                   getEnvInt("MAX_WIDTH", 8192),
 		MaxHeight:                  getEnvInt("MAX_HEIGHT", 8192),
 		MaxAudioBytes:              getEnvInt64("MAX_AUDIO_BYTES", 100*1024*1024),
+		ModelAutoInstall:           getEnvBool("MODEL_AUTO_INSTALL", false),
 		ASRModelsDir:               getEnv("ASR_MODELS_DIR", "./models/asr"),
 		ASRThreads:                 getEnvInt("ASR_THREADS", 1),
 		ASRMaxDurationSeconds:      getEnvInt("ASR_MAX_DURATION_SECONDS", 7_200),
@@ -202,7 +204,7 @@ func validUnitInterval(value float64) bool {
 
 func validateEnvironmentSyntax() error {
 	integerKeys := []string{
-		"MAX_IMAGE_BYTES", "MAX_IMAGE_PIXELS", "MAX_WIDTH", "MAX_HEIGHT", "MAX_AUDIO_BYTES", "ASR_THREADS", "ASR_MAX_DURATION_SECONDS", "OCR_MAX_SIDE", "TRANSLATION_MAX_INPUT_TOKENS", "TRANSLATION_MAX_OUTPUT_TOKENS", "TRANSLATION_MAX_CHARACTERS", "TRANSLATION_MAX_BATCH",
+		"MAX_IMAGE_BYTES", "MAX_IMAGE_PIXELS", "MAX_WIDTH", "MAX_HEIGHT", "MAX_AUDIO_BYTES", "ASR_THREADS", "ASR_MAX_DURATION_SECONDS", "ASR_CHUNK_SECONDS", "OCR_MAX_SIDE", "TRANSLATION_MAX_INPUT_TOKENS", "TRANSLATION_MAX_OUTPUT_TOKENS", "TRANSLATION_MAX_CHARACTERS", "TRANSLATION_MAX_BATCH",
 		"DOWNLOAD_TIMEOUT", "DIAL_TIMEOUT", "TLS_HANDSHAKE_TIMEOUT",
 		"RESPONSE_HEADER_TIMEOUT", "MAX_REDIRECTS", "INFERENCE_CONCURRENCY",
 		"MAX_PENDING_INFERENCES", "ONNX_INTRA_OP_THREADS", "ONNX_INTER_OP_THREADS",
@@ -229,7 +231,7 @@ func validateEnvironmentSyntax() error {
 	}
 
 	booleanKeys := []string{
-		"CLASSIFY_HENTAI_AS_PORNOGRAPHY", "CACHE_ENABLED", "DETECTOR_ENABLED", "PPROF_ENABLED",
+		"CLASSIFY_HENTAI_AS_PORNOGRAPHY", "CACHE_ENABLED", "DETECTOR_ENABLED", "MODEL_AUTO_INSTALL", "PPROF_ENABLED",
 	}
 	for _, key := range booleanKeys {
 		if value := os.Getenv(key); value != "" {

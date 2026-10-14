@@ -44,7 +44,7 @@ func newTranscribeCommand(options *runtimeOptions) *cobra.Command {
 			}
 			runtimeOptions := *options
 			runtimeOptions.Models = modelID
-			runtime, err := newRuntime(runtimeOptions, false)
+			runtime, err := newRuntime(runtimeOptions, false, false)
 			if err != nil {
 				return err
 			}

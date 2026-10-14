@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"log/slog"
 	"testing"
 
 	"github.com/gabrielmoura/NudeDetector/internal/config"
@@ -18,6 +20,13 @@ func TestInstallArtifactsUsesPinnedOPUSManifest(t *testing.T) {
 		if artifact.SHA256 == "" || artifact.MaxBytes < 1 {
 			t.Fatalf("unsafe artifact: %#v", artifact)
 		}
+	}
+}
+
+func TestInstallSelectedModelArtifactsSkipsUnmanagedModels(t *testing.T) {
+	cfg := &config.Config{}
+	if err := installSelectedModelArtifacts(context.Background(), cfg, []string{"nsfw-classifier", "nudenet-detector"}, slog.Default()); err != nil {
+		t.Fatalf("installSelectedModelArtifacts() error = %v", err)
 	}
 }
 

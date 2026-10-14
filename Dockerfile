@@ -72,7 +72,8 @@ ENV ONNXRUNTIME_SHARED_LIBRARY_PATH=/app/lib/libonnxruntime.so.1.22.0 \
     LD_LIBRARY_PATH=/app/lib/sherpa \
     ASR_MODELS_DIR=/app/models/asr \
     OCR_MODELS_DIR=/app/models/ocr \
-    TRANSLATION_MODELS_DIR=/app/models/translation
+    TRANSLATION_MODELS_DIR=/app/models/translation \
+    MODEL_AUTO_INSTALL=true
 
 USER 1000:1000
 EXPOSE 8080

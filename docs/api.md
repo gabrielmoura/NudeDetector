@@ -1,8 +1,10 @@
 # API HTTP
 
 A API HTTP escuta em `HTTP_ADDR` (padrão `:8080`). Todas as capacidades de IA
-são locais: um modelo deve ser instalado antecipadamente e selecionado quando
-o processo é iniciado. Uma requisição nunca baixa um artefato de modelo.
+são locais e uma requisição nunca baixa um artefato de modelo. Por padrão, os
+modelos opcionais devem ser instalados antecipadamente; com
+`MODEL_AUTO_INSTALL=true`, o modo `serve` instala somente os IDs selecionados
+antes de abrir a porta HTTP.
 
 ## Seleção de modelos
 
@@ -18,6 +20,13 @@ RAM previsível.
 ./bin/nude-detector serve --models opus-mt-en-romance
 ./bin/nude-detector serve --models m2m100-418m
 ```
+
+Na imagem Docker, `MODEL_AUTO_INSTALL=true` já vem configurado. Portanto,
+monte `/app/models` em um volume e passe, por exemplo,
+`ENABLED_MODELS=whisper-base`; o processo verifica ou baixa o perfil Whisper
+selecionado durante a inicialização. Para manter a imagem sem rede na partida,
+passe `MODEL_AUTO_INSTALL=false` e instale os artefatos pelo comando
+`models install MODEL` antes de iniciar o servidor.
 
 Consulte o catálogo antes de iniciar uma capacidade:
 
