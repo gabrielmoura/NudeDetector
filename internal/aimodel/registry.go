@@ -204,12 +204,12 @@ func defaultDescriptors() map[string]Descriptor {
 			Quantization: "int8 when installed", Languages: []string{"multilingual"}, EstimatedMemoryMB: 150, License: "MIT",
 		},
 		"whisper-base": {
-			ID: "whisper-base", Name: "Whisper Base", Version: "pending pinned revision",
+			ID: "whisper-base", Name: "Whisper Base", Version: "31dc0cc3b59ba4a0b52941f1d6dce9c0e30311b4",
 			Capabilities: []Capability{CapabilityASR}, Engine: "sherpa-onnx", Format: "onnx",
 			Quantization: "int8 when installed", Languages: []string{"multilingual"}, EstimatedMemoryMB: 300, License: "MIT",
 		},
 		"whisper-small": {
-			ID: "whisper-small", Name: "Whisper Small", Version: "pending pinned revision",
+			ID: "whisper-small", Name: "Whisper Small", Version: "8f3c18b358db4d1f2fc1eae49d75cd20989e4309",
 			Capabilities: []Capability{CapabilityASR}, Engine: "sherpa-onnx", Format: "onnx",
 			Quantization: "int8 when installed", Languages: []string{"multilingual"}, EstimatedMemoryMB: 700, License: "MIT",
 		},
@@ -219,7 +219,7 @@ func defaultDescriptors() map[string]Descriptor {
 			Languages: []string{"model dependent"}, EstimatedMemoryMB: 160, License: "PaddlePaddle model license",
 		},
 		"pp-ocrv6-small": {
-			ID: "pp-ocrv6-small", Name: "PP-OCRv6 Small", Version: "pending pinned revision",
+			ID: "pp-ocrv6-small", Name: "PP-OCRv6 Small", Version: "det:28fe5895c24fd108c19eb3e8479f4ab385fbfc62 rec:b8f84f0b80c529de40b4fbb3544b84fa7233a513",
 			Capabilities: []Capability{CapabilityOCR}, Engine: "onnxruntime", Format: "onnx",
 			Languages: []string{"model dependent"}, EstimatedMemoryMB: 300, License: "PaddlePaddle model license",
 		},

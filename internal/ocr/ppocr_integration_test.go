@@ -26,6 +26,10 @@ func TestPPTinyRecognizesRenderedEnglishText(t *testing.T) {
 	if modelDir == "" || runtimeLibrary == "" {
 		t.Skip("set OCR_MODEL_DIR and ONNXRUNTIME_SHARED_LIBRARY_PATH for OCR integration")
 	}
+	modelID := os.Getenv("OCR_MODEL_ID")
+	if modelID == "" {
+		modelID = "pp-ocrv6-tiny"
+	}
 	ort.SetSharedLibraryPath(runtimeLibrary)
 	if err := ort.InitializeEnvironment(); err != nil {
 		t.Fatalf("InitializeEnvironment() error = %v", err)
@@ -33,7 +37,7 @@ func TestPPTinyRecognizesRenderedEnglishText(t *testing.T) {
 	defer ort.DestroyEnvironment()
 
 	recognizer, err := NewPP(PPConfig{
-		ModelID:        "pp-ocrv6-tiny",
+		ModelID:        modelID,
 		DetectorPath:   filepath.Join(modelDir, "det.onnx"),
 		RecognizerPath: filepath.Join(modelDir, "rec.onnx"),
 		RecognizerYAML: filepath.Join(modelDir, "rec.yml"),
@@ -50,6 +54,9 @@ func TestPPTinyRecognizesRenderedEnglishText(t *testing.T) {
 	}
 	if !strings.Contains(strings.ToUpper(result.Text), "HELLO") {
 		t.Fatalf("Recognize() text = %q, blocks = %#v", result.Text, result.Blocks)
+	}
+	if result.Model != modelID {
+		t.Fatalf("Recognize() model = %q, want %q", result.Model, modelID)
 	}
 }
 
