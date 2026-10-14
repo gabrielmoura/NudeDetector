@@ -238,7 +238,7 @@ func newRuntime(options runtimeOptions, loadDetector bool) (*runtime, error) {
 	if err := validateImplementedModels(models); err != nil {
 		return nil, err
 	}
-	needsONNXRuntime := models.Enabled(aimodel.NSFWClassifierID) || models.Enabled(aimodel.NudeNetDetectorID) || models.Enabled("pp-ocrv6-tiny") || models.Enabled("pp-ocrv6-small") || models.Enabled("opus-mt-en-romance") || models.Enabled("opus-mt-romance-en")
+	needsONNXRuntime := models.Enabled(aimodel.NSFWClassifierID) || models.Enabled(aimodel.NudeNetDetectorID) || models.Enabled("pp-ocrv6-tiny") || models.Enabled("pp-ocrv6-small") || models.Enabled("opus-mt-en-romance") || models.Enabled("opus-mt-romance-en") || models.Enabled("m2m100-418m")
 	var runtimeLibrary string
 	ortInitialized := false
 	if needsONNXRuntime {
@@ -442,13 +442,20 @@ func configureModelPaths(models *aimodel.Registry, cfg *config.Config) error {
 			return err
 		}
 	}
+	if err := models.SetPaths("m2m100-418m", []string{
+		filepath.Join(cfg.TranslationModelsDir, "m2m100-418m", "encoder.onnx"),
+		filepath.Join(cfg.TranslationModelsDir, "m2m100-418m", "decoder.onnx"),
+		filepath.Join(cfg.TranslationModelsDir, "m2m100-418m", "tokenizer.json"),
+	}); err != nil {
+		return err
+	}
 	return nil
 }
 
 func validateImplementedModels(models *aimodel.Registry) error {
 	for _, id := range models.EnabledIDs() {
 		switch id {
-		case aimodel.NSFWClassifierID, aimodel.NudeNetDetectorID, "whisper-tiny", "whisper-base", "whisper-small", "pp-ocrv6-tiny", "pp-ocrv6-small", "opus-mt-en-romance", "opus-mt-romance-en":
+		case aimodel.NSFWClassifierID, aimodel.NudeNetDetectorID, "whisper-tiny", "whisper-base", "whisper-small", "pp-ocrv6-tiny", "pp-ocrv6-small", "opus-mt-en-romance", "opus-mt-romance-en", "m2m100-418m":
 		default:
 			return fmt.Errorf("model %q is registered but its service is not implemented yet", id)
 		}
@@ -467,7 +474,29 @@ func newTranslator(cfg *config.Config, models *aimodel.Registry) (translation.Tr
 		}
 	}
 	if selected == "" {
-		return nil, nil
+		if !models.Enabled("m2m100-418m") {
+			return nil, nil
+		}
+		dir := filepath.Join(cfg.TranslationModelsDir, "m2m100-418m")
+		translator, err := translation.NewM2M100(translation.M2MConfig{
+			ModelID:         "m2m100-418m",
+			EncoderPath:     filepath.Join(dir, "encoder.onnx"),
+			DecoderPath:     filepath.Join(dir, "decoder.onnx"),
+			TokenizerPath:   filepath.Join(dir, "tokenizer.json"),
+			MaxInputTokens:  cfg.TranslationMaxInputTokens,
+			MaxOutputTokens: cfg.TranslationMaxOutputTokens,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("initialize m2m100-418m: %w", err)
+		}
+		if err := models.MarkLoaded("m2m100-418m"); err != nil {
+			_ = translator.Close()
+			return nil, err
+		}
+		return translator, nil
+	}
+	if models.Enabled("m2m100-418m") {
+		return nil, fmt.Errorf("only one translation model can be enabled per process")
 	}
 	sources, targets := []string{"en"}, []string{"pt", "es", "fr", "it"}
 	if selected == "opus-mt-romance-en" {

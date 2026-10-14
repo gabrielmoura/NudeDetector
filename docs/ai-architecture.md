@@ -49,8 +49,9 @@ ele não fizer parte da instância.
    dicionário e pós-processamento DB/CTC validado contra os contratos ONNX.
 5. Tradução: OPUS-MT agora usa o `tokenizer.json` oficial, encoder ONNX e
    decoder autoregressivo real. Os smoke tests opt-in validam `Hello world` →
-   `Olá mundo` e a direção inversa. M2M100 só entra depois de comprovar
-   tokenizer, tokens de idioma e cache KV.
+   `Olá mundo` e a direção inversa. M2M100 também usa seus artefatos ONNX
+   oficiais, tokens de idioma e geração autoregressiva; a primeira versão usa
+   histórico completo em vez de cache KV para manter o contrato validado.
 
 ## Compatibilidade e riscos
 

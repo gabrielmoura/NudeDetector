@@ -90,7 +90,10 @@ func newModelsCommand() *cobra.Command {
 }
 
 func installArtifacts(modelID string, cfg *config.Config) ([]modelstore.Artifact, error) {
-	const maxArtifactBytes = 200 * 1024 * 1024
+	const (
+		maxArtifactBytes    = 200 * 1024 * 1024
+		maxM2MArtifactBytes = 1024 * 1024 * 1024
+	)
 	var revision, repository, destination string
 	var files [][2]string
 	switch modelID {
@@ -105,6 +108,9 @@ func installArtifacts(modelID string, cfg *config.Config) ([]modelstore.Artifact
 	case "opus-mt-romance-en":
 		repository, revision, destination = "Xenova/opus-mt-ROMANCE-en", "f60feaabe8bb435a5871e7702b25f53a01e770f8", filepath.Join(cfg.TranslationModelsDir, modelID)
 		files = [][2]string{{"onnx/encoder_model_int8.onnx", "df97d2f70156a0e3b993c75877e7710831e3f9fc30e6f26f7cad25e0466806c6"}, {"onnx/decoder_model_merged_int8.onnx", "61729b29859d821786fa85ddbb44c7d04bcf7deb6d14e9b614bd6c5f6aedb31f"}, {"tokenizer.json", "34979cc78f4dfa92f7b39ad8f0d4068dc7d1be61940f09db5ac77818e013bd99"}, {"vocab.json", "32c8eeec099b448425a7da4e09ec10acbe424a733780c9bcec2062846f03e706"}}
+	case "m2m100-418m":
+		repository, revision, destination = "Xenova/m2m100_418M", "9c374f0b7aca709787cea97b047bfbbd1559d177", filepath.Join(cfg.TranslationModelsDir, modelID)
+		files = [][2]string{{"onnx/encoder_model_int8.onnx", "b47e2d5f3fe1123a8916a30ac0cf648870faef00d33fbd06afa9a333d8a3c457"}, {"onnx/decoder_model_merged_int8.onnx", "2974783b0627ef59fff6ccc89eb538efe27cf82599c837546d2cd85c081ae31d"}, {"tokenizer.json", "03d9e111731c2d71f39a2c2a88499743e4c251385d07f0384b4349a23ba54363"}}
 	default:
 		return nil, fmt.Errorf("model %q does not yet have an install manifest", modelID)
 	}
@@ -116,7 +122,11 @@ func installArtifacts(modelID string, cfg *config.Config) ([]modelstore.Artifact
 		} else if target == "onnx/decoder_model_merged_int8.onnx" {
 			target = "decoder.onnx"
 		}
-		artifacts = append(artifacts, modelstore.Artifact{Path: filepath.Join(destination, target), URL: "https://huggingface.co/" + repository + "/resolve/" + revision + "/" + file[0], SHA256: file[1], MaxBytes: maxArtifactBytes})
+		maxBytes := int64(maxArtifactBytes)
+		if modelID == "m2m100-418m" {
+			maxBytes = maxM2MArtifactBytes
+		}
+		artifacts = append(artifacts, modelstore.Artifact{Path: filepath.Join(destination, target), URL: "https://huggingface.co/" + repository + "/resolve/" + revision + "/" + file[0], SHA256: file[1], MaxBytes: maxBytes})
 	}
 	return artifacts, nil
 }

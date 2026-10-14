@@ -234,7 +234,7 @@ func defaultDescriptors() map[string]Descriptor {
 			Languages: []string{"en", "pt", "es", "fr", "it"}, EstimatedMemoryMB: 600, License: "Apache-2.0",
 		},
 		"m2m100-418m": {
-			ID: "m2m100-418m", Name: "M2M100 418M", Version: "pending pinned revision",
+			ID: "m2m100-418m", Name: "M2M100 418M", Version: "9c374f0b7aca709787cea97b047bfbbd1559d177",
 			Capabilities: []Capability{CapabilityTranslation}, Engine: "onnxruntime", Format: "onnx",
 			Languages: []string{"multilingual"}, EstimatedMemoryMB: 1800, License: "MIT",
 		},

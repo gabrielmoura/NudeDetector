@@ -4,6 +4,7 @@ package translation
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	sp "github.com/tggo/goSentencePiece"
@@ -26,6 +27,30 @@ func TestM2M100Contract(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Logf("%s inputs=%+v outputs=%+v", path, inputs, outputs)
+	}
+}
+
+func TestM2M100TranslatesEnglishToPortuguese(t *testing.T) {
+	dir := os.Getenv("M2M100_DIR")
+	if dir == "" || os.Getenv("ONNXRUNTIME_SHARED_LIBRARY_PATH") == "" {
+		t.Skip("set M2M100_DIR and ONNXRUNTIME_SHARED_LIBRARY_PATH")
+	}
+	ort.SetSharedLibraryPath(os.Getenv("ONNXRUNTIME_SHARED_LIBRARY_PATH"))
+	if err := ort.InitializeEnvironment(); err != nil {
+		t.Fatal(err)
+	}
+	defer ort.DestroyEnvironment()
+	translator, err := NewM2M100(M2MConfig{ModelID: "m2m100-418m", EncoderPath: dir + "/encoder.onnx", DecoderPath: dir + "/decoder.onnx", TokenizerPath: dir + "/tokenizer.json", MaxInputTokens: 64, MaxOutputTokens: 16})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer translator.Close()
+	result, err := translator.Translate(t.Context(), Request{Text: "Hello world", SourceLanguage: "en", TargetLanguage: "pt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.ToLower(result.TranslatedText), "ol") {
+		t.Fatalf("translation = %q, want Portuguese greeting", result.TranslatedText)
 	}
 }
 

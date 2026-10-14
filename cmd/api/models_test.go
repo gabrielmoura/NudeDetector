@@ -21,6 +21,24 @@ func TestInstallArtifactsUsesPinnedOPUSManifest(t *testing.T) {
 	}
 }
 
+func TestInstallArtifactsUsesPinnedM2MManifest(t *testing.T) {
+	artifacts, err := installArtifacts("m2m100-418m", &config.Config{TranslationModelsDir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(artifacts) != 3 {
+		t.Fatalf("artifact count = %d, want 3", len(artifacts))
+	}
+	for _, artifact := range artifacts {
+		if artifact.SHA256 == "" || artifact.MaxBytes < 1 {
+			t.Fatalf("unsafe artifact: %#v", artifact)
+		}
+	}
+	if artifacts[1].MaxBytes < 860_415_003 {
+		t.Fatalf("decoder limit = %d, want at least 860415003", artifacts[1].MaxBytes)
+	}
+}
+
 func TestInstallArtifactsUsesPinnedWhisperAndOCRManifests(t *testing.T) {
 	cfg := &config.Config{ASRModelsDir: t.TempDir(), OCRModelsDir: t.TempDir()}
 	for _, modelID := range []string{"whisper-tiny", "pp-ocrv6-tiny"} {

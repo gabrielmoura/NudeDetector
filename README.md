@@ -148,6 +148,18 @@ para inglês para português, espanhol, francês ou italiano. Para a direção
 inversa, use a revisão `f60feaabe8bb435a5871e7702b25f53a01e770f8` de
 [Xenova/opus-mt-ROMANCE-en](https://huggingface.co/Xenova/opus-mt-ROMANCE-en).
 
+Para pares entre os cinco idiomas suportados (`en`, `pt`, `es`, `fr`, `it`), o
+perfil multilíngue M2M100 pode ser selecionado explicitamente. Ele é maior e
+tem um limite de artefato de 1 GiB, portanto continua desabilitado e
+descarregado por padrão:
+
+```bash
+./bin/nude-detector models install m2m100-418m
+./bin/nude-detector models verify m2m100-418m
+./bin/nude-detector translate 'Hello world' --from en --to pt --model m2m100-418m
+./bin/nude-detector serve --models m2m100-418m
+```
+
 ```bash
 ./bin/nude-detector translate 'Hello world' --from en --to pt
 ./bin/nude-detector translate --file texto.txt --from pt --to en --model opus-mt-romance-en --format json
