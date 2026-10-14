@@ -156,6 +156,10 @@ para inglês para português, espanhol, francês ou italiano. Para a direção
 inversa, use a revisão `f60feaabe8bb435a5871e7702b25f53a01e770f8` de
 [Xenova/opus-mt-ROMANCE-en](https://huggingface.co/Xenova/opus-mt-ROMANCE-en).
 
+Textos grandes são segmentados nos limites de palavras antes da geração. URLs,
+tags HTML e trechos entre crases são preservados literalmente pelo adaptador
+compartilhado de tradução.
+
 Para pares entre os cinco idiomas suportados (`en`, `pt`, `es`, `fr`, `it`), o
 perfil multilíngue M2M100 pode ser selecionado explicitamente. Ele é maior e
 tem um limite de artefato de 1 GiB, portanto continua desabilitado e

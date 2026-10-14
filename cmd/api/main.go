@@ -493,7 +493,7 @@ func newTranslator(cfg *config.Config, models *aimodel.Registry) (translation.Tr
 			_ = translator.Close()
 			return nil, err
 		}
-		return translator, nil
+		return translation.NewProtectedTranslator(translator, cfg.TranslationMaxInputTokens*3), nil
 	}
 	if models.Enabled("m2m100-418m") {
 		return nil, fmt.Errorf("only one translation model can be enabled per process")
@@ -511,7 +511,7 @@ func newTranslator(cfg *config.Config, models *aimodel.Registry) (translation.Tr
 		_ = translator.Close()
 		return nil, err
 	}
-	return translator, nil
+	return translation.NewProtectedTranslator(translator, cfg.TranslationMaxInputTokens*3), nil
 }
 
 func newOCRRecognizer(cfg *config.Config, models *aimodel.Registry) (ocr.Recognizer, error) {

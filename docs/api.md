@@ -111,6 +111,10 @@ OPUS-MT cobre `en` para `pt`, `es`, `fr` e `it`, ou a direção inversa,
 conforme o perfil selecionado. M2M100 cobre pares entre `en`, `pt`, `es`, `fr`
 e `it` no perfil atualmente integrado.
 
+URLs, tags HTML e trechos de código delimitados por crases são preservados
+literalmente. A prosa restante pode ser dividida em blocos em limites de
+palavra, de acordo com o limite de tokens configurado para o modelo.
+
 ### `GET /v1/models` e `GET /v1/models/{id}`
 
 Expõem metadados sem carregar modelos adicionais: ID, versão fixada,
