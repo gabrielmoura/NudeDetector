@@ -68,6 +68,9 @@ O perfil Tiny pode ser instalado com verificação de integridade:
 ```bash
 ./bin/nude-detector models install whisper-tiny
 ./bin/nude-detector models verify whisper-tiny
+# Os perfis Base e Small são maiores e também são instalados somente sob demanda.
+./bin/nude-detector models install whisper-base
+./bin/nude-detector models install whisper-small
 ```
 Após a instalação, o primeiro caminho efetivo é WAV PCM ou float:
 
@@ -113,6 +116,8 @@ O perfil Tiny também possui instalação explícita e verificável:
 ```bash
 ./bin/nude-detector models install pp-ocrv6-tiny
 ./bin/nude-detector models verify pp-ocrv6-tiny
+# O perfil Small usa os mesmos contratos de OCR, com artefatos maiores.
+./bin/nude-detector models install pp-ocrv6-small
 ```
 
 ### Tradução local (OPUS-MT)
@@ -195,6 +200,11 @@ quando a pasta está vazia.
 ## API HTTP
 
 Base URL padrão: `http://localhost:8080`.
+
+A referência completa, incluindo os contratos ASR, OCR, tradução, catálogo de
+modelos e códigos de erro, está em [docs/api.md](docs/api.md). As capacidades
+novas só ficam disponíveis quando seu modelo for instalado e selecionado em
+`serve --models`; a seleção não carrega os demais modelos.
 
 ### Classificar upload
 
