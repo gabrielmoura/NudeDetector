@@ -42,6 +42,8 @@ no host. O tamanho máximo é `MAX_AUDIO_BYTES` e a duração é limitada por
 Campos opcionais:
 
 - `language`: idioma esperado, por exemplo `pt` ou `en`.
+- `model`: ID do modelo ASR habilitado no processo; use-o para exigir o perfil
+  esperado pela chamada.
 - `timestamps`: `true` solicita timestamps quando o modelo os disponibiliza.
 - `format`: `json` (padrão) ou `text`.
 
@@ -66,6 +68,7 @@ antes da inferência.
 Campos opcionais:
 
 - `language`: dica de idioma encaminhada ao reconhecedor.
+- `model`: ID do modelo OCR habilitado no processo.
 - `return_boxes`: use `true` para receber os blocos e caixas.
 
 ```bash

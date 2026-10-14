@@ -30,6 +30,10 @@ func (h *Handler) handleOCR(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
+	if !requestedModelEnabled(h.models, r.FormValue("model"), "ocr") {
+		writeErr(w, http.StatusBadRequest, "model_unavailable", "requested OCR model is not enabled")
+		return
+	}
 	data, err := io.ReadAll(io.LimitReader(file, h.cfg.MaxImageBytes+1))
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid_image", "read image")

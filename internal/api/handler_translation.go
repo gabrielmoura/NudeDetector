@@ -28,12 +28,9 @@ func (h *Handler) handleTranslation(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON")
 		return
 	}
-	if request.Model != "" {
-		model, found := h.models.Get(request.Model)
-		if !found || !h.models.Enabled(request.Model) || !supportsTranslation(model.Capabilities) {
-			writeErr(w, http.StatusBadRequest, "model_unavailable", "requested translation model is not enabled")
-			return
-		}
+	if !requestedModelEnabled(h.models, request.Model, "translation") {
+		writeErr(w, http.StatusBadRequest, "model_unavailable", "requested translation model is not enabled")
+		return
 	}
 	if (request.Text == "" && len(request.Texts) == 0) || (request.Text != "" && len(request.Texts) != 0) || request.SourceLanguage == "" || request.TargetLanguage == "" {
 		writeErr(w, http.StatusBadRequest, "invalid_request", "exactly one of text or texts plus source_language and target_language is required")
@@ -94,13 +91,4 @@ func enabledModelID(registry *aimodel.Registry, capability string) string {
 		}
 	}
 	return "unknown"
-}
-
-func supportsTranslation(capabilities []aimodel.Capability) bool {
-	for _, capability := range capabilities {
-		if capability == aimodel.CapabilityTranslation {
-			return true
-		}
-	}
-	return false
 }

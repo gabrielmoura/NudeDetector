@@ -37,6 +37,25 @@ type Handler struct {
 	translator translation.Translator
 }
 
+func requestedModelEnabled(registry *aimodel.Registry, requested, capability string) bool {
+	if requested == "" {
+		return true
+	}
+	if registry == nil {
+		return false
+	}
+	model, found := registry.Get(requested)
+	if !found || !model.Enabled {
+		return false
+	}
+	for _, item := range model.Capabilities {
+		if string(item) == capability {
+			return true
+		}
+	}
+	return false
+}
+
 func New(
 	cfg *config.Config,
 	log *slog.Logger,

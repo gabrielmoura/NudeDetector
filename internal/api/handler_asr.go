@@ -33,6 +33,10 @@ func (h *Handler) handleTranscription(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
+	if !requestedModelEnabled(h.models, r.FormValue("model"), "asr") {
+		writeErr(w, http.StatusBadRequest, "model_unavailable", "requested ASR model is not enabled")
+		return
+	}
 	data, err := io.ReadAll(io.LimitReader(file, h.cfg.MaxAudioBytes+1))
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid_audio", "read audio")

@@ -31,3 +31,22 @@ func TestModelsEndpointsExposeCatalogAndUnknownModel(t *testing.T) {
 		t.Fatalf("GET /v1/models/unknown status = %d, want %d", unknownResponse.Code, http.StatusNotFound)
 	}
 }
+
+func TestRequestedModelEnabled(t *testing.T) {
+	registry, err := aimodel.New("classifier.onnx", "detector.onnx", []string{"whisper-tiny"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !requestedModelEnabled(registry, "", "asr") {
+		t.Fatal("empty requested model should be accepted")
+	}
+	if !requestedModelEnabled(registry, "whisper-tiny", "asr") {
+		t.Fatal("enabled ASR model should be accepted")
+	}
+	if requestedModelEnabled(registry, "whisper-tiny", "ocr") {
+		t.Fatal("ASR model should not satisfy OCR")
+	}
+	if requestedModelEnabled(registry, "whisper-base", "asr") {
+		t.Fatal("disabled ASR model should be rejected")
+	}
+}
