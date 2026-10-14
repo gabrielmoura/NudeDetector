@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 
 	"github.com/gabrielmoura/NudeDetector/internal/translation"
 	"github.com/spf13/cobra"
@@ -22,7 +24,14 @@ func newTranslateCommand(options *runtimeOptions) *cobra.Command {
 		} else if len(arguments) == 1 {
 			text = arguments[0]
 		} else {
-			return fmt.Errorf("TEXT or --file is required")
+			data, err := io.ReadAll(command.InOrStdin())
+			if err != nil {
+				return fmt.Errorf("read translation input: %w", err)
+			}
+			text = string(data)
+			if strings.TrimSpace(text) == "" {
+				return fmt.Errorf("TEXT, --file, or stdin is required")
+			}
 		}
 		runtimeOptions := *options
 		runtimeOptions.Models = modelID

@@ -175,6 +175,7 @@ descarregado por padrão:
 ```bash
 ./bin/nude-detector translate 'Hello world' --from en --to pt
 ./bin/nude-detector translate --file texto.txt --from pt --to en --model opus-mt-romance-en --format json
+printf 'Hello world' | ./bin/nude-detector translate --from en --to pt
 ./bin/nude-detector translate 'Hello world' --from en --to pt --output resultado.txt
 ./bin/nude-detector serve --models opus-mt-en-romance
 curl -sS -X POST http://localhost:8080/v1/translations \
