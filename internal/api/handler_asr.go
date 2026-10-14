@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"net/http"
@@ -84,11 +85,18 @@ func (h *Handler) handleTranscription(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, result)
 		return
 	}
-	if format != "text" {
-		writeErr(w, http.StatusBadRequest, "invalid_request", "format must be text or json")
+	var formatted bytes.Buffer
+	if err := asr.WriteResult(&formatted, result, format); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	contentType := "text/plain; charset=utf-8"
+	if format == "srt" {
+		contentType = "application/x-subrip; charset=utf-8"
+	} else if format == "vtt" {
+		contentType = "text/vtt; charset=utf-8"
+	}
+	w.Header().Set("Content-Type", contentType)
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(result.Text))
+	_, _ = w.Write(formatted.Bytes())
 }

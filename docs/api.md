@@ -45,7 +45,8 @@ Campos opcionais:
 - `model`: ID do modelo ASR habilitado no processo; use-o para exigir o perfil
   esperado pela chamada.
 - `timestamps`: `true` solicita timestamps quando o modelo os disponibiliza.
-- `format`: `json` (padrão) ou `text`.
+- `format`: `json` (padrão), `text`, `srt` ou `vtt`. Os formatos de legenda
+  retornam `400` quando o modelo não expõe segmentos confiáveis.
 
 ```bash
 curl -sS -X POST http://localhost:8080/v1/audio/transcriptions \
